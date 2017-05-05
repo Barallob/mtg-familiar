@@ -13,11 +13,13 @@ import android.view.ViewGroup;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
+import android.widget.AdapterView.OnItemLongClickListener;
 import android.widget.ListView;
 
 import com.gelakinetic.mtgfam.FamiliarActivity;
 import com.gelakinetic.mtgfam.R;
 import com.gelakinetic.mtgfam.fragments.dialogs.SortOrderDialogFragment;
+import com.gelakinetic.mtgfam.fragments.dialogs.ResultListLongPressFragment;
 import com.gelakinetic.mtgfam.helpers.ResultListAdapter;
 import com.gelakinetic.mtgfam.helpers.SearchCriteria;
 import com.gelakinetic.mtgfam.helpers.ToastWrapper;
@@ -209,6 +211,24 @@ public class ResultListFragment extends FamiliarFragment {
                 } catch (FamiliarDbException e) {
                     handleFamiliarDbException(true);
                 }
+            }
+        });
+
+        mListView.setOnItemLongClickListener(new OnItemLongClickListener() {
+            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
+                // TODO - MFournier: Show menu!
+
+                removeDialog(getFragmentManager());
+
+                /* Create and show the dialog. */
+                Bundle args = new Bundle();
+                args.putLong(CardViewPagerFragment.STARTING_CARD_POSITION, id);
+                //args.putLongArray(CardViewPagerFragment.CARD_ID_ARRAY, cardIds);
+
+                ResultListLongPressFragment newFragment = new ResultListLongPressFragment();
+                newFragment.setArguments(args);
+                newFragment.show(getFragmentManager(), FamiliarActivity.DIALOG_TAG);
+                return true;
             }
         });
 
