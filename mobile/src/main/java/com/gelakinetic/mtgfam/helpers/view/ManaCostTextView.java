@@ -1,12 +1,31 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.helpers.view;
 
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.content.ContextCompat;
+import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -14,14 +33,21 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
+import androidx.core.graphics.drawable.DrawableCompat;
+
 import com.gelakinetic.mtgfam.R;
 import com.tokenautocomplete.FilteredArrayAdapter;
 
 import java.util.LinkedHashMap;
+import java.util.Objects;
 
 public class ManaCostTextView extends ATokenTextView {
     private static final LinkedHashMap<String, BitmapDrawable> MANA_DRAWABLES = new LinkedHashMap<>();
     private static final LinkedHashMap<String, Integer> MANA_SYMBOLS = new LinkedHashMap<>();
+
     static {
         MANA_SYMBOLS.put("0", R.drawable.glyph_0);
         MANA_SYMBOLS.put("1", R.drawable.glyph_1);
@@ -74,7 +100,7 @@ public class ManaCostTextView extends ATokenTextView {
 
     public ManaCostTextView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        this.allowDuplicates(true);
+        mAllowDuplicates = true;
         ManaSymbolAdapter manaSymbolAdapter = new ManaSymbolAdapter();
         this.setAdapter(manaSymbolAdapter);
     }
@@ -82,13 +108,11 @@ public class ManaCostTextView extends ATokenTextView {
     @Override
     protected View getViewForObject(String symbol) {
         LayoutInflater l = (LayoutInflater) getContext().getSystemService(Activity.LAYOUT_INFLATER_SERVICE);
-        ImageView view = (ImageView) l.inflate(R.layout.mana_token, (ViewGroup) getParent(), false);
+        ImageView view = (ImageView) Objects.requireNonNull(l).inflate(R.layout.mana_token, (ViewGroup) getParent(), false);
         BitmapDrawable bitmapDrawable = MANA_DRAWABLES.get(symbol);
         if (bitmapDrawable == null) {
             int resId = MANA_SYMBOLS.get(symbol);
-            final BitmapDrawable drawable = (BitmapDrawable) ContextCompat.getDrawable(
-                    this.getContext(), resId);
-            final Bitmap bitmap = drawable.getBitmap();
+            final Bitmap bitmap = getBitmapFromVectorDrawable(getContext(), resId);
             float bitmapHeight = ViewUtil.convertDpToPixel(15, this.getContext());
             float bitmapWidth = ViewUtil.scaleDimension(bitmap.getHeight(), bitmapHeight,
                     bitmap.getWidth());
@@ -125,27 +149,18 @@ public class ManaCostTextView extends ATokenTextView {
         }
     }
 
-    /**
-     * Return the mana cost as a string.
-     * @return the mana cost string.
-     */
-    @NonNull
-    public String getStringFromObjects() {
-        String value = "";
-        for (String part : this.getObjects()) {
-            value += "{" + part + "}";
+    private static Bitmap getBitmapFromVectorDrawable(Context context, int drawableId) {
+        Drawable drawable = ContextCompat.getDrawable(context, drawableId);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            drawable = (DrawableCompat.wrap(Objects.requireNonNull(drawable))).mutate();
         }
-        return value;
-    }
 
-    public void setObjectsFromString(@Nullable String value) {
-        if (value == null) {
-            this.clear();
-        } else {
-            /* Get a list of the persisted mana symbols */
-            for (String symbol : value.split("}")) {
-                this.addObject(symbol + "}");
-            }
-        }
+        Bitmap bitmap = Bitmap.createBitmap(Objects.requireNonNull(drawable).getIntrinsicWidth(),
+                drawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+        drawable.draw(canvas);
+
+        return bitmap;
     }
 }

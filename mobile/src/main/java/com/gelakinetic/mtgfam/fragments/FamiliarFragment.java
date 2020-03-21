@@ -1,15 +1,28 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.fragments;
 
 import android.app.SearchManager;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.res.Resources;
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
-import android.support.v4.app.FragmentTransaction;
-import android.support.v4.view.MenuItemCompat;
-import android.support.v7.widget.SearchView;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -17,11 +30,18 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.widget.SearchView;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
+
 import com.gelakinetic.mtgfam.FamiliarActivity;
 import com.gelakinetic.mtgfam.R;
-import com.gelakinetic.mtgfam.helpers.ToastWrapper;
+import com.gelakinetic.mtgfam.helpers.SnackbarWrapper;
 
-import java.util.concurrent.RejectedExecutionException;
+import java.util.Objects;
 
 /**
  * This is the superclass for all fragments. It has a bunch of convenient methods
@@ -62,6 +82,7 @@ public abstract class FamiliarFragment extends Fragment {
     public void onDetach() {
         super.onDetach();
         getFamiliarActivity().clearLoading();
+        getFamiliarActivity().mMarketPriceStore.stopAllRequests();
     }
 
     /**
@@ -76,7 +97,7 @@ public abstract class FamiliarFragment extends Fragment {
      * @return The inflated view
      */
     @Override
-    public abstract View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState);
+    public abstract View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState);
 
     /**
      * Clear any results from the prior fragment. We don't want them persisting past this fragment,
@@ -88,6 +109,7 @@ public abstract class FamiliarFragment extends Fragment {
         if ((getActivity()) != null) {
             getFamiliarActivity().getFragmentResults();
             getFamiliarActivity().mDrawerLayout.closeDrawer(getFamiliarActivity().mDrawerList);
+            getFamiliarActivity().selectDrawerEntry(this.getClass());
         }
     }
 
@@ -98,16 +120,18 @@ public abstract class FamiliarFragment extends Fragment {
      * @param outState Bundle in which to place your saved state.
      */
     @Override
-    public void onSaveInstanceState(Bundle outState) {
-        outState.putString("WORKAROUND_FOR_BUG_19917_KEY", "WORKAROUND_FOR_BUG_19917_VALUE");
+    public void onSaveInstanceState(@NonNull Bundle outState) {
+        if (outState.isEmpty()) {
+            outState.putString("WORKAROUND_FOR_BUG_19917_KEY", "WORKAROUND_FOR_BUG_19917_VALUE");
+        }
         super.onSaveInstanceState(outState);
+        FamiliarActivity.logBundleSize("OSSI " + this.getClass().getName(), outState);
     }
 
     /**
      * Called when the Fragment is no longer resumed.  This is generally
-     * tied to {@link FamiliarActivity#onPause() Activity.onPause} of the containing
-     * Activity's lifecycle.
-     * <p/>
+     * tied to Activity.onPause of the containing Activity's lifecycle.
+     * <p>
      * In this case, always remove the dialog, since it can contain stale references to the pre-rotated activity and
      * fragment after rotation. The one exception is the change log dialog, which would get removed by TTS checking
      * intents on the first install. It also cleans up any pending spice requests (price loading)
@@ -116,13 +140,6 @@ public abstract class FamiliarFragment extends Fragment {
     public void onPause() {
         super.onPause();
         removeDialog(getFragmentManager());
-        try {
-            if (getFamiliarActivity().mSpiceManager.getPendingRequestCount() > 0) {
-                getFamiliarActivity().mSpiceManager.cancelAllRequests();
-            }
-        } catch (RejectedExecutionException e) {
-            /* eat it */
-        }
     }
 
     /**
@@ -140,26 +157,35 @@ public abstract class FamiliarFragment extends Fragment {
         if (getActivity() != null) {
             if (canInterceptSearchKey()) {
                 menu.add(R.string.search_search)
-                        .setIcon(getResourceIdFromAttr(R.attr.ic_menu_search))
-                        .setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
-                            @Override
-                            public boolean onMenuItemClick(MenuItem item) {
-                                onInterceptSearchKey();
-                                return true;
-                            }
+                        .setIcon(R.drawable.ic_menu_search)
+                        .setOnMenuItemClickListener(item -> {
+                            onInterceptSearchKey();
+                            return true;
                         }).setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
             } else {
 
                 SearchManager searchManager = (SearchManager) getActivity().getSystemService(Context.SEARCH_SERVICE);
+                if (null == searchManager) {
+                    return;
+                }
                 SearchView sv = new SearchView(getActivity());
                 try {
+                    // Try to get the package name, important for debug builds
+                    String packageName = null;
+                    if (null != getContext()) {
+                        packageName = getContext().getPackageName();
+                    }
+                    // Default to the production package name
+                    if (null == packageName) {
+                        packageName = "com.gelakinetic.mtgfam";
+                    }
                     sv.setSearchableInfo(searchManager.getSearchableInfo(
-                            new ComponentName(getContext().getPackageName(), "com.gelakinetic.mtgfam.FamiliarActivity")));
+                            new ComponentName(packageName, "com.gelakinetic.mtgfam.FamiliarActivity")));
 
                     MenuItem mi = menu.add(R.string.name_search_hint)
-                            .setIcon(getResourceIdFromAttr(R.attr.ic_menu_search));
-                    MenuItemCompat.setActionView(mi, sv);
-                    MenuItemCompat.setOnActionExpandListener(mi, new MenuItemCompat.OnActionExpandListener() {
+                            .setIcon(R.drawable.ic_menu_search);
+                    mi.setActionView(sv);
+                    mi.setOnActionExpandListener(new MenuItem.OnActionExpandListener() {
                         @Override
                         public boolean onMenuItemActionExpand(MenuItem item) {
                             mIsSearchViewOpen = true;
@@ -176,9 +202,9 @@ public abstract class FamiliarFragment extends Fragment {
                             return true;
                         }
                     });
-                    MenuItemCompat.setShowAsAction(mi, MenuItemCompat.SHOW_AS_ACTION_IF_ROOM | MenuItemCompat.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW);
+                    mi.setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM | MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW);
 
-                } catch (Resources.NotFoundException e) {
+                } catch (RuntimeException e) {
                     /* One user threw this once. I think the typed ComponentName fixes it, but just in case */
                 }
             }
@@ -211,17 +237,21 @@ public abstract class FamiliarFragment extends Fragment {
      * @param frag The fragment to start
      * @param args Any arguments which the fragment takes
      */
-    public void startNewFragment(Fragment frag, Bundle args) {
-        FragmentManager fm = getActivity().getSupportFragmentManager();
-        if (fm != null) {
-            frag.setArguments(args);
-            FragmentTransaction ft = fm.beginTransaction();
-            ft.replace(R.id.fragment_container, frag, FamiliarActivity.FRAGMENT_TAG);
-            ft.addToBackStack(null);
-            ft.commit();
-            if (getActivity() != null) {
-                getFamiliarActivity().hideKeyboard();
+    public void startNewFragment(FamiliarFragment frag, Bundle args) {
+        try {
+            FragmentManager fm = Objects.requireNonNull(getActivity()).getSupportFragmentManager();
+            if (fm != null) {
+                frag.setArguments(args);
+                FragmentTransaction ft = fm.beginTransaction();
+                ft.replace(R.id.fragment_container, frag, FamiliarActivity.FRAGMENT_TAG);
+                ft.addToBackStack(null);
+                ft.commitAllowingStateLoss();
+                if (getActivity() != null) {
+                    getFamiliarActivity().hideKeyboard();
+                }
             }
+        } catch (IllegalStateException | NullPointerException e) {
+            // If the fragment can't be shown, fail quietly
         }
     }
 
@@ -244,23 +274,26 @@ public abstract class FamiliarFragment extends Fragment {
      */
     public void handleFamiliarDbException(boolean shouldFinish) {
         /* Show a toast on the UI thread */
-        getActivity().runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                ToastWrapper.makeText(getActivity(), getString(R.string.error_database), ToastWrapper.LENGTH_LONG).show();
-            }
-        });
-        /* Finish the fragment if requested */
-        if (shouldFinish) {
-            /* will be correct for nested ViewPager fragments too */
-            FragmentManager fm = getActivity().getSupportFragmentManager();
-            if (fm != null) {
-                /* If there is only one fragment, finish the activity
-                 * Otherwise pop the offending fragment */
-                if (fm.getFragments().size() == 1) {
-                    getActivity().finish();
-                } else {
-                    fm.popBackStack();
+        FragmentActivity activity = getActivity();
+        if (null != activity) {
+            activity.runOnUiThread(() -> SnackbarWrapper.makeAndShowText(getActivity(), R.string.error_database, SnackbarWrapper.LENGTH_LONG));
+            /* Finish the fragment if requested */
+            if (shouldFinish) {
+                try {
+                    /* will be correct for nested ViewPager fragments too */
+                    FragmentManager fm = activity.getSupportFragmentManager();
+                    if (fm != null) {
+                        /* If there is only one fragment, finish the activity
+                         * Otherwise pop the offending fragment */
+                        if (fm.getFragments().size() == 1) {
+                            activity.finish();
+                        } else if (!fm.isStateSaved()) {
+                            fm.popBackStack();
+                        }
+                    }
+                } catch (IllegalStateException e) {
+                    /* Just give up, hopefully the toast was shown */
+                    activity.finish();
                 }
             }
         }
@@ -305,16 +338,7 @@ public abstract class FamiliarFragment extends Fragment {
      * @return The resource ID
      */
     public int getResourceIdFromAttr(int attr) {
-        return ((FamiliarActivity) getActivity()).getResourceIdFromAttr(attr);
-    }
-
-    /**
-     * Override this to receive results from Tutor Cards visual image search queries
-     *
-     * @param multiverseId The multiverseId of the card the query returned
-     */
-    public void receiveTutorCardsResult(long multiverseId) {
-
+        return ((FamiliarActivity) Objects.requireNonNull(getActivity())).getResourceIdFromAttr(attr);
     }
 
     /**
@@ -323,5 +347,16 @@ public abstract class FamiliarFragment extends Fragment {
      * @param orderByStr The sort order string
      */
     public void receiveSortOrder(String orderByStr) {
+    }
+
+    /**
+     * Override setArguments to also log the size of the arguments being set
+     *
+     * @param args Arguments to set
+     */
+    @Override
+    public void setArguments(Bundle args) {
+        super.setArguments(args);
+        FamiliarActivity.logBundleSize("SA " + this.getClass().getName(), args);
     }
 }

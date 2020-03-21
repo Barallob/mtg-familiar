@@ -1,28 +1,35 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.helpers;
 
-import android.annotation.SuppressLint;
-import android.app.Dialog;
+import android.app.Activity;
 import android.content.Context;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
-import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.view.View;
-import android.widget.Button;
-import android.widget.LinearLayout;
-import android.widget.TextView;
+import android.util.Pair;
 
-import com.afollestad.materialdialogs.DialogAction;
-import com.afollestad.materialdialogs.MaterialDialog;
 import com.gelakinetic.mtgfam.R;
-import com.gelakinetic.mtgfam.fragments.CardViewPagerFragment;
-import com.gelakinetic.mtgfam.fragments.FamiliarFragment;
 import com.gelakinetic.mtgfam.fragments.dialogs.SortOrderDialogFragment;
 import com.gelakinetic.mtgfam.fragments.dialogs.SortOrderDialogFragment.SortOption;
 import com.gelakinetic.mtgfam.helpers.CardHelpers.IndividualSetInfo;
 import com.gelakinetic.mtgfam.helpers.database.CardDbAdapter;
-import com.gelakinetic.mtgfam.helpers.database.DatabaseManager;
 import com.gelakinetic.mtgfam.helpers.database.FamiliarDbException;
+import com.gelakinetic.mtgfam.helpers.tcgp.MarketPriceInfo;
 
 import java.io.BufferedReader;
 import java.io.FileOutputStream;
@@ -31,13 +38,11 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
-import static com.gelakinetic.mtgfam.fragments.WishlistFragment.AVG_PRICE;
-import static com.gelakinetic.mtgfam.fragments.WishlistFragment.HIGH_PRICE;
-import static com.gelakinetic.mtgfam.fragments.WishlistFragment.LOW_PRICE;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 /**
  * This class has helpers used for reading, writing, and modifying the wishlist from different fragments
@@ -50,12 +55,12 @@ public class WishlistHelpers {
     /**
      * Write the wishlist passed as a parameter to the wishlist file
      *
-     * @param mCtx      A context to open the file and pop toasts with
+     * @param activity  A context to open the file and pop toasts with
      * @param lWishlist The wishlist to write to the file
      */
-    private static void WriteWishlist(Context mCtx, ArrayList<MtgCard> lWishlist) {
+    public static void WriteWishlist(Activity activity, ArrayList<MtgCard> lWishlist) {
         try {
-            FileOutputStream fos = mCtx.openFileOutput(WISHLIST_NAME, Context.MODE_PRIVATE);
+            FileOutputStream fos = activity.openFileOutput(WISHLIST_NAME, Context.MODE_PRIVATE);
 
             for (MtgCard m : lWishlist) {
                 fos.write(m.toWishlistString().getBytes());
@@ -63,36 +68,59 @@ public class WishlistHelpers {
 
             fos.close();
         } catch (IOException e) {
-            ToastWrapper.makeText(mCtx, e.getLocalizedMessage(), ToastWrapper.LENGTH_LONG).show();
+            SnackbarWrapper.makeAndShowText(activity, e.getLocalizedMessage(), SnackbarWrapper.LENGTH_LONG);
         }
     }
 
     /**
      * Write the wishlist passed as a parameter to the wishlist file
      *
-     * @param mCtx                A context to open the file and pop toasts with
+     * @param activity            A context to open the file and pop toasts with
      * @param mCompressedWishlist The wishlist to write to the file
      */
-    public static void WriteCompressedWishlist(Context mCtx, ArrayList<CompressedWishlistInfo> mCompressedWishlist) {
+    public static void WriteCompressedWishlist(Activity activity, List<CompressedWishlistInfo> mCompressedWishlist) {
+        if (null == activity) {
+            // Context is null, don't try to write the wishlist
+            return;
+        }
         try {
-            FileOutputStream fos = mCtx.openFileOutput(WISHLIST_NAME, Context.MODE_PRIVATE);
+            FileOutputStream fos = activity.openFileOutput(WISHLIST_NAME, Context.MODE_PRIVATE);
 
             /* For each compressed card, make an MtgCard and write it to the wishlist */
             for (CompressedWishlistInfo cwi : mCompressedWishlist) {
-                MtgCard card = cwi.mCard;
                 for (IndividualSetInfo isi : cwi.mInfo) {
-                    card.mExpansion = isi.mSet;
-                    card.setCode = isi.mSetCode;
-                    card.mNumber = isi.mNumber;
-                    card.foil = isi.mIsFoil;
-                    card.numberOf = isi.mNumberOf;
-                    fos.write(card.toWishlistString().getBytes());
+                    cwi.applyIndividualInfo(isi);
+                    fos.write(cwi.toWishlistString().getBytes());
                 }
             }
 
             fos.close();
         } catch (IOException e) {
-            ToastWrapper.makeText(mCtx, e.getLocalizedMessage(), ToastWrapper.LENGTH_LONG).show();
+            SnackbarWrapper.makeAndShowText(activity, e.getLocalizedMessage(), SnackbarWrapper.LENGTH_LONG);
+        }
+    }
+
+    /**
+     * Adds an item as a CompressedWishlistInfo to the wishlist
+     *
+     * @param activity     activity that this is being called from
+     * @param wishlistInfo the CompressedWishlistInfo to add to the wishlist
+     */
+    public static void addItemToWishlist(final Activity activity, final CompressedWishlistInfo wishlistInfo) {
+        try {
+            final ArrayList<MtgCard> currentWishlist = ReadWishlist(activity, false);
+            for (IndividualSetInfo isi : wishlistInfo.mInfo) {
+                wishlistInfo.applyIndividualInfo(isi);
+                if (currentWishlist.contains(wishlistInfo)) {
+                    final int existingIndex = currentWishlist.indexOf(wishlistInfo);
+                    currentWishlist.get(existingIndex).mNumberOf += wishlistInfo.mNumberOf;
+                } else {
+                    currentWishlist.add(wishlistInfo);
+                }
+            }
+            WriteWishlist(activity, currentWishlist);
+        } catch (FamiliarDbException e) {
+            // eat it
         }
     }
 
@@ -114,242 +142,35 @@ public class WishlistHelpers {
     /**
      * Read the wishlist from a file and return it as an ArrayList<MtgCard>
      *
-     * @param mCtx A context to open the file and pop toasts with
+     * @param activity     A context to open the file and pop toasts with
+     * @param loadFullData true to load all card data from the database, false to just read the file
      * @return The wishlist in ArrayList form
      */
-    public static ArrayList<MtgCard> ReadWishlist(Context mCtx) {
+    public static ArrayList<MtgCard> ReadWishlist(Activity activity, boolean loadFullData) throws FamiliarDbException {
 
         ArrayList<MtgCard> lWishlist = new ArrayList<>();
+        int orderAddedIdx = 0;
 
         try {
             String line;
-            BufferedReader br = new BufferedReader(new InputStreamReader(mCtx.openFileInput(WISHLIST_NAME)));
-            /* Read each line as a card, and add them to the ArrayList */
-            while ((line = br.readLine()) != null) {
-                lWishlist.add(MtgCard.fromWishlistString(line, mCtx));
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(activity.openFileInput(WISHLIST_NAME)))) {
+                /* Read each line as a card, and add them to the ArrayList */
+                while ((line = br.readLine()) != null) {
+                    MtgCard card = MtgCard.fromWishlistString(line, false, activity);
+                    card.setIndex(orderAddedIdx++);
+                    lWishlist.add(card);
+                }
             }
         } catch (NumberFormatException e) {
-            ToastWrapper.makeText(mCtx, e.getLocalizedMessage(), ToastWrapper.LENGTH_LONG).show();
+            SnackbarWrapper.makeAndShowText(activity, e.getLocalizedMessage(), SnackbarWrapper.LENGTH_LONG);
         } catch (IOException e) {
             /* Catches file not found exception when wishlist doesn't exist */
         }
+
+        if (loadFullData && !lWishlist.isEmpty()) {
+            MtgCard.initCardListFromDb(activity, lWishlist);
+        }
         return lWishlist;
-    }
-
-    /**
-     * Return a dialog in which a user can specify how many of what set of a card are in the wishlist
-     *
-     * @param mCardName      The name of the card
-     * @param fragment       The fragment which hosts the dialog and receives onWishlistChanged()
-     * @param showCardButton Whether the button to launch the CardViewFragment should be shown
-     * @return A dialog which edits the wishlist
-     */
-    public static Dialog getDialog(final String mCardName, final FamiliarFragment fragment, boolean showCardButton) {
-
-        final Context ctx = fragment.getActivity();
-
-        /* Create the custom view */
-        View customView = fragment.getActivity().getLayoutInflater().inflate(R.layout.wishlist_dialog,
-                null, false);
-        assert customView != null;
-
-        /* Grab the linear layout. Make it final to be accessible from the button later */
-        final LinearLayout linearLayout = (LinearLayout) customView.findViewById(R.id.linear_layout);
-
-        /* If the button should be shown, show it and attach a listener */
-        if (showCardButton) {
-            customView.findViewById(R.id.show_card_button).setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    Bundle args = new Bundle();
-                        /* Open the database */
-                    SQLiteDatabase db = DatabaseManager.getInstance(fragment.getActivity(), false).openDatabase(false);
-                    try {
-                        /* Get the card ID, and send it to a new CardViewFragment */
-                        args.putLongArray(CardViewPagerFragment.CARD_ID_ARRAY, new long[]{CardDbAdapter.fetchIdByName(mCardName, db)});
-                        args.putInt(CardViewPagerFragment.STARTING_CARD_POSITION, 0);
-                        CardViewPagerFragment cvpFrag = new CardViewPagerFragment();
-                        fragment.startNewFragment(cvpFrag, args);
-                    } catch (FamiliarDbException e) {
-                        fragment.handleFamiliarDbException(false);
-                    }
-                    DatabaseManager.getInstance(fragment.getActivity(), false).closeDatabase(false);
-                }
-            });
-        } else {
-            customView.findViewById(R.id.show_card_button).setVisibility(View.GONE);
-            customView.findViewById(R.id.divider1).setVisibility(View.GONE);
-            customView.findViewById(R.id.divider2).setVisibility(View.GONE);
-        }
-
-        /* Read the wishlist */
-        ArrayList<MtgCard> wishlist = ReadWishlist(ctx);
-
-        /* Find any counts currently in the wishlist */
-        final Map<String, String> targetCardNumberOfs = new HashMap<>();
-        final Map<String, String> targetFoilCardNumberOfs = new HashMap<>();
-        for (MtgCard card : wishlist) {
-            if (card.mName.equals(mCardName)) {
-                if (card.foil) {
-                    targetFoilCardNumberOfs.put(card.setCode, card.numberOf + "");
-                } else {
-                    targetCardNumberOfs.put(card.setCode, card.numberOf + "");
-                }
-            }
-        }
-
-        /* Get all potential sets and rarities for this card */
-        final ArrayList<String> potentialSetCodes = new ArrayList<>();
-        final ArrayList<Character> potentialRarities = new ArrayList<>();
-        final ArrayList<String> potentialNumbers = new ArrayList<>();
-
-        /* Open the database */
-        SQLiteDatabase db = DatabaseManager.getInstance(fragment.getActivity(), false).openDatabase(false);
-
-        /* Get all the cards with relevant info from the database */
-        Cursor cards;
-        try {
-            cards = CardDbAdapter.fetchCardByName(mCardName, new String[]{
-                    CardDbAdapter.DATABASE_TABLE_CARDS + "." + CardDbAdapter.KEY_ID,
-                    CardDbAdapter.DATABASE_TABLE_CARDS + "." + CardDbAdapter.KEY_SET,
-                    CardDbAdapter.DATABASE_TABLE_CARDS + "." + CardDbAdapter.KEY_RARITY,
-                    CardDbAdapter.DATABASE_TABLE_CARDS + "." + CardDbAdapter.KEY_NUMBER,
-                    CardDbAdapter.DATABASE_TABLE_SETS + "." + CardDbAdapter.KEY_NAME}, true, db);
-        } catch (FamiliarDbException e) {
-            DatabaseManager.getInstance(fragment.getActivity(), false).closeDatabase(false);
-            return null;
-        }
-
-        Set<String> foilSets;
-        try {
-            foilSets = CardDbAdapter.getFoilSets(db);
-        } catch (FamiliarDbException e) {
-            DatabaseManager.getInstance(fragment.getActivity(), false).closeDatabase(false);
-            return null;
-        }
-
-        /* For each card, add it to the wishlist view */
-        while (!cards.isAfterLast()) {
-            String setCode = cards.getString(cards.getColumnIndex(CardDbAdapter.KEY_SET));
-            String setName = cards.getString(cards.getColumnIndex(CardDbAdapter.KEY_NAME));
-            char rarity = (char) cards.getInt(cards.getColumnIndex(CardDbAdapter.KEY_RARITY));
-            String number = cards.getString(cards.getColumnIndex(CardDbAdapter.KEY_NUMBER));
-
-            /* Inflate a row and fill it with stuff */
-            View wishlistRow = fragment.getActivity().getLayoutInflater().inflate(R.layout.wishlist_dialog_row, null, false);
-            assert wishlistRow != null;
-            ((TextView) wishlistRow.findViewById(R.id.cardset)).setText(setName);
-            String numberOf = targetCardNumberOfs.get(setCode);
-            numberOf = numberOf == null ? "0" : numberOf;
-            final Button numberButton = (Button) wishlistRow.findViewById(R.id.number_button);
-            numberButton.setText(numberOf);
-            numberButton.setOnClickListener(new NumberButtonOnClickListener(fragment) {
-                @SuppressLint("SetTextI18n")
-                @Override
-                public void onDialogNumberSet(Integer number) {
-                    numberButton.setText(number.toString());
-                }
-            });
-            wishlistRow.findViewById(R.id.wishlistDialogFoil).setVisibility(View.GONE);
-            linearLayout.addView(wishlistRow);
-            potentialSetCodes.add(setCode);
-            potentialRarities.add(rarity);
-            potentialNumbers.add(number);
-
-            /* If this card has a foil version, add that too */
-            View wishlistRowFoil;
-            if (foilSets.contains(setCode)) {
-                wishlistRowFoil = fragment.getActivity().getLayoutInflater().inflate(R.layout.wishlist_dialog_row,
-                        null, false);
-                assert wishlistRowFoil != null;
-                ((TextView) wishlistRowFoil.findViewById(R.id.cardset)).setText(setName);
-                String foilNumberOf = targetFoilCardNumberOfs.get(setCode);
-                foilNumberOf = foilNumberOf == null ? "0" : foilNumberOf;
-                final Button numberButtonFoil = (Button) wishlistRowFoil.findViewById(R.id.number_button);
-                numberButtonFoil.setText(foilNumberOf);
-                numberButtonFoil.setOnClickListener(new NumberButtonOnClickListener(fragment) {
-                    @SuppressLint("SetTextI18n")
-                    @Override
-                    public void onDialogNumberSet(Integer number) {
-                        numberButtonFoil.setText(number.toString());
-                    }
-                });
-                wishlistRowFoil.findViewById(R.id.wishlistDialogFoil).setVisibility(View.VISIBLE);
-                linearLayout.addView(wishlistRowFoil);
-                potentialSetCodes.add(setCode);
-                potentialRarities.add(rarity);
-                potentialNumbers.add(number);
-            }
-
-            cards.moveToNext();
-        }
-
-        /* Clean up */
-        cards.close();
-        DatabaseManager.getInstance(fragment.getActivity(), false).closeDatabase(false);
-
-        /* make and return the actual dialog */
-        return new MaterialDialog.Builder(ctx)
-                .title(mCardName + " " + fragment.getString(R.string.wishlist_edit_dialog_title_end))
-                .customView(customView, false)
-                .positiveText(fragment.getString(R.string.dialog_ok))
-                .onPositive(new MaterialDialog.SingleButtonCallback() {
-                    @Override
-                    public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-
-                        /* Read the wishlist */
-                        ArrayList<MtgCard> wishlist = ReadWishlist(ctx);
-
-                        /* Add the cards listed in the dialog to the wishlist */
-                        for (int i = 0; i < linearLayout.getChildCount(); i++) {
-                            View view = linearLayout.getChildAt(i);
-                            assert view != null;
-
-                            /* build the card object */
-                            MtgCard card = new MtgCard();
-                            card.mName = mCardName;
-                            card.setCode = potentialSetCodes.get(i);
-                            try {
-                                Button numberInput = ((Button) view.findViewById(R.id.number_button));
-                                assert numberInput.getText() != null;
-                                card.numberOf = Integer.valueOf(numberInput.getText().toString());
-                            } catch (NumberFormatException e) {
-                                card.numberOf = 0;
-                            }
-                            card.foil = (view.findViewById(R.id.wishlistDialogFoil).getVisibility() == View.VISIBLE);
-                            card.mRarity = potentialRarities.get(i);
-                            card.mNumber = potentialNumbers.get(i);
-
-                            /* Look through the wishlist for each card, set the numberOf or remove it if it exists, or
-                             * add the card if it doesn't */
-                            boolean added = false;
-                            for (int j = 0; j < wishlist.size(); j++) {
-                                if (card.mName.equals(wishlist.get(j).mName)
-                                        && card.setCode.equals(wishlist.get(j).setCode)
-                                        && card.foil == wishlist.get(j).foil) {
-                                    if (card.numberOf == 0) {
-                                        wishlist.remove(j);
-                                        j--;
-                                    } else {
-                                        wishlist.get(j).numberOf = card.numberOf;
-                                    }
-                                    added = true;
-                                }
-                            }
-                            if (!added && card.numberOf > 0) {
-                                wishlist.add(card);
-                            }
-
-                        }
-
-                        /* Write the wishlist */
-                        WriteWishlist(fragment.getActivity(), wishlist);
-                        /* notify the fragment of a change in the wishlist */
-                        fragment.onWishlistChanged(mCardName);
-                    }
-                })
-                .negativeText(fragment.getString(R.string.dialog_cancel))
-                .build();
     }
 
     /**
@@ -362,20 +183,20 @@ public class WishlistHelpers {
      * @param sharePrice          Whether or not the card price should be exported
      * @return A string containing all the wishlist data
      */
-    public static String GetSharableWishlist(ArrayList<CompressedWishlistInfo> mCompressedWishlist,
+    public static String GetSharableWishlist(List<CompressedWishlistInfo> mCompressedWishlist,
                                              Context ctx, boolean shareText, boolean sharePrice,
-                                             int priceOption) {
+                                             MarketPriceInfo.PriceType priceOption) {
         StringBuilder readableWishlist = new StringBuilder();
 
         /* For each wishlist entry */
         for (CompressedWishlistInfo cwi : mCompressedWishlist) {
             /* Append the card name, always */
-            readableWishlist.append(cwi.mCard.mName);
+            readableWishlist.append(cwi.getName());
             readableWishlist.append("\r\n");
 
             /* Append the full text, if the user wants it */
             if (shareText) {
-                cwi.mCard.appendCardText(readableWishlist);
+                cwi.appendCardText(readableWishlist);
             }
 
             /* For each set info in the wishlist */
@@ -394,25 +215,8 @@ public class WishlistHelpers {
                 }
                 /* Attempt to append the price */
                 if (sharePrice && isi.mPrice != null) {
-                    double price = 0;
-                    if (isi.mIsFoil) {
-                        price = isi.mPrice.mFoilAverage;
-                    } else {
-                        switch (priceOption) {
-                            case LOW_PRICE: {
-                                price = isi.mPrice.mLow;
-                                break;
-                            }
-                            case AVG_PRICE: {
-                                price = isi.mPrice.mAverage;
-                                break;
-                            }
-                            case HIGH_PRICE: {
-                                price = isi.mPrice.mHigh;
-                                break;
-                            }
-                        }
-                    }
+                    double price;
+                    price = isi.mPrice.getPrice(isi.mIsFoil, priceOption).price;
                     if (price != 0) {
                         readableWishlist
                                 .append(", $")
@@ -426,24 +230,42 @@ public class WishlistHelpers {
         return readableWishlist.toString();
     }
 
+    public static Pair<Map<String, String>, Map<String, String>> getTargetNumberOfs(String cardName, ArrayList<MtgCard> wishlist) {
+        final Map<String, String> targetCardNumberOfs = new HashMap<>();
+        final Map<String, String> targetFoilNumberOfs = new HashMap<>();
+        for (MtgCard card : wishlist) {
+            if (card.getName().equals(cardName)) {
+                if (card.mIsFoil) {
+                    targetFoilNumberOfs.put(card.getExpansion(), String.valueOf(card.mNumberOf));
+                    continue;
+                }
+                targetCardNumberOfs.put(card.getExpansion(), String.valueOf(card.mNumberOf));
+            }
+        }
+        return new Pair<>(targetCardNumberOfs, targetFoilNumberOfs);
+    }
+
     /**
-     * This class encapsulates a single MtgCard and an ArrayList of non-duplicated information for different printings
-     * of that card
+     * This class encapsulates a single MtgCard and an ArrayList of non-duplicated information for
+     * different printings of that card.
      */
     public static class CompressedWishlistInfo extends CardHelpers.CompressedCardInfo {
+
+        final int mIndex;
 
         /**
          * Constructor
          *
          * @param card The MtgCard which will be the base for this object
          */
-        public CompressedWishlistInfo(MtgCard card) {
+        public CompressedWishlistInfo(MtgCard card, int index) {
             super(card);
+            mIndex = index;
         }
 
         /**
-         * Check to see if two CompressedWishlistInfo objects are equivalent, or if this is equivalent to a MtgCard
-         * object. The comparison is done on the MtgCard's name
+         * Check to see if two CompressedWishlistInfo objects are equivalent, or if this is
+         * equivalent to a MtgCard object. The comparison is done on the MtgCard's name.
          *
          * @param o The object to compare to this one
          * @return true if the specified object is equal to this string, false otherwise.
@@ -451,11 +273,16 @@ public class WishlistHelpers {
         @Override
         public boolean equals(Object o) {
             if (o instanceof CompressedWishlistInfo) {
-                return mCard.mName.equals(((CompressedWishlistInfo) o).mCard.mName);
-            } else if (o instanceof MtgCard) {
-                return mCard.mName.equals(((MtgCard) o).mName);
+                return mName.equals(((CompressedWishlistInfo) o).mName);
             }
-            return false;
+            return super.equals(o);
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 23;
+            hash = hash * 31 + super.hashCode();
+            return hash * 31 + mIndex;
         }
 
         /**
@@ -471,25 +298,13 @@ public class WishlistHelpers {
          * @param priceSetting LOW_PRICE, AVG_PRICE, or HIGH_PRICE
          * @return The sum price of all cards in this object
          */
-        public double getTotalPrice(int priceSetting) {
+        double getTotalPrice(MarketPriceInfo.PriceType priceSetting) {
             double sumWish = 0;
 
             for (IndividualSetInfo isi : mInfo) {
                 try {
-                    if (isi.mIsFoil) {
-                        sumWish += (isi.mPrice.mFoilAverage * isi.mNumberOf);
-                    } else {
-                        switch (priceSetting) {
-                            case LOW_PRICE:
-                                sumWish += (isi.mPrice.mLow * isi.mNumberOf);
-                                break;
-                            case AVG_PRICE:
-                                sumWish += (isi.mPrice.mAverage * isi.mNumberOf);
-                                break;
-                            case HIGH_PRICE:
-                                sumWish += (isi.mPrice.mHigh * isi.mNumberOf);
-                                break;
-                        }
+                    if (null != isi.mPrice) {
+                        sumWish += (isi.mPrice.getPrice(isi.mIsFoil, priceSetting).price * isi.mNumberOf);
                     }
                 } catch (NullPointerException e) {
                     /* eat it, no price is loaded */
@@ -497,12 +312,16 @@ public class WishlistHelpers {
             }
             return sumWish;
         }
+
+        public int getIndex() {
+            return mIndex;
+        }
     }
 
     public static class WishlistComparator implements Comparator<CompressedWishlistInfo> {
 
         final ArrayList<SortOption> options = new ArrayList<>();
-        int mPriceSetting = 0;
+        final MarketPriceInfo.PriceType mPriceSetting;
 
         /**
          * Constructor. It parses an "order by" string into search options. The first options have
@@ -511,7 +330,7 @@ public class WishlistHelpers {
          * @param orderByStr   The string to parse. It uses SQLite syntax: "KEY asc,KEY2 desc" etc
          * @param priceSetting The current price setting (LO/AVG/HIGH) used to sort by prices
          */
-        public WishlistComparator(String orderByStr, int priceSetting) {
+        public WishlistComparator(String orderByStr, MarketPriceInfo.PriceType priceSetting) {
             int idx = 0;
             for (String option : orderByStr.split(",")) {
                 String key = option.split(" ")[0];
@@ -529,6 +348,7 @@ public class WishlistHelpers {
          * @return an integer < 0 if wish1 is less than wish2, 0 if they are equal, and > 0 if wish1 is greater than wish2.
          */
         @Override
+        @SuppressFBWarnings(value = "DM_BOXED_PRIMITIVE_FOR_COMPARE", justification = "Minimum API Level not high enough")
         public int compare(CompressedWishlistInfo wish1, CompressedWishlistInfo wish2) {
 
             int retVal = 0;
@@ -538,35 +358,43 @@ public class WishlistHelpers {
                 try {
                     switch (option.getKey()) {
                         case CardDbAdapter.KEY_NAME: {
-                            retVal = wish1.mCard.mName.compareTo(wish2.mCard.mName);
+                            retVal = wish1.getName().compareTo(wish2.getName());
                             break;
                         }
                         case CardDbAdapter.KEY_COLOR: {
-                            retVal = wish1.mCard.mColor.compareTo(wish2.mCard.mColor);
+                            retVal = wish1.getColor().compareTo(wish2.getColor());
                             break;
                         }
                         case CardDbAdapter.KEY_SUPERTYPE: {
-                            retVal = wish1.mCard.mType.compareTo(wish2.mCard.mType);
+                            retVal = wish1.getType().compareTo(wish2.getType());
                             break;
                         }
                         case CardDbAdapter.KEY_CMC: {
-                            retVal = wish1.mCard.mCmc - wish2.mCard.mCmc;
+                            retVal = Integer.compare(wish1.getCmc(), wish2.getCmc());
                             break;
                         }
                         case CardDbAdapter.KEY_POWER: {
-                            retVal = Float.compare(wish1.mCard.mPower, wish2.mCard.mPower);
+                            retVal = Float.compare(wish1.getPower(), wish2.getPower());
                             break;
                         }
                         case CardDbAdapter.KEY_TOUGHNESS: {
-                            retVal = Float.compare(wish1.mCard.mToughness, wish2.mCard.mToughness);
+                            retVal = Float.compare(wish1.getToughness(), wish2.getToughness());
                             break;
                         }
                         case CardDbAdapter.KEY_SET: {
-                            retVal = wish1.mCard.mExpansion.compareTo(wish2.mCard.mExpansion);
+                            retVal = wish1.getFirstExpansion().compareTo(wish2.getFirstExpansion());
                             break;
                         }
                         case SortOrderDialogFragment.KEY_PRICE: {
                             retVal = Double.compare(wish1.getTotalPrice(mPriceSetting), wish2.getTotalPrice(mPriceSetting));
+                            break;
+                        }
+                        case SortOrderDialogFragment.KEY_ORDER: {
+                            retVal = Integer.compare(wish1.getIndex(), wish2.getIndex());
+                            break;
+                        }
+                        case CardDbAdapter.KEY_RARITY: {
+                            retVal = Character.compare(wish1.getHighestRarity(), wish2.getHighestRarity());
                             break;
                         }
                     }

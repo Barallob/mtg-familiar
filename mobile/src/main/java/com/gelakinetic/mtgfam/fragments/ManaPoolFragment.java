@@ -1,3 +1,22 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.fragments;
 
 import android.os.Bundle;
@@ -7,17 +26,104 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.TextView;
 
+import androidx.annotation.IdRes;
+import androidx.annotation.NonNull;
+import androidx.annotation.StringRes;
+
 import com.gelakinetic.mtgfam.R;
-import com.gelakinetic.mtgfam.helpers.ToastWrapper;
+import com.gelakinetic.mtgfam.helpers.NumberButtonOnClickListener;
+import com.gelakinetic.mtgfam.helpers.PreferenceAdapter;
+
+import java.util.ArrayList;
+import java.util.Locale;
 
 public class ManaPoolFragment extends FamiliarFragment {
 
-    private TextView mWhiteReadout, mBlueReadout, mBlackReadout, mRedReadout, mGreenReadout, mColorlessReadout,
-            mSpellReadout;
-    private int mWhite, mBlue, mBlack, mRed, mGreen, mColorless, mSpell;
+    private class ManaPoolItem {
+
+        private int mCount;
+        private final TextView mReadout;
+        @StringRes
+        private final int mKeyResId;
+
+        /**
+         * Create a mana pool item
+         *
+         * @param parent       The view this item exists in
+         * @param plusResId    The resource ID for the [+] button
+         * @param minusResId   The resource ID for the [-] button
+         * @param readoutResId The resource ID for the text readout
+         * @param keyResId     The string resource ID for the key to save this value
+         */
+        ManaPoolItem(View parent, @IdRes int plusResId, @IdRes int minusResId,
+                     @IdRes int readoutResId, @StringRes int keyResId) {
+            mCount = 0;
+            mReadout = parent.findViewById(readoutResId);
+            mKeyResId = keyResId;
+            parent.findViewById(plusResId).setOnClickListener((View v) -> {
+                mCount++;
+                updateReadout();
+            });
+            parent.findViewById(minusResId).setOnClickListener((View v) -> {
+                mCount--;
+                if (mCount < 0) {
+                    mCount = 0;
+                }
+                updateReadout();
+            });
+            mReadout.setOnClickListener(new NumberButtonOnClickListener(ManaPoolFragment.this) {
+                @Override
+                public void onDialogNumberSet(Integer number) {
+                    mCount = number;
+                    updateReadout();
+                }
+
+                @Override
+                public Integer getMinNumber() {
+                    return 0;
+                }
+
+                @Override
+                public Integer getInitialValue() {
+                    return mCount;
+                }
+            });
+        }
+
+        /**
+         * Clear the count and update the readout
+         */
+        void clearCount() {
+            mCount = 0;
+            updateReadout();
+        }
+
+        /**
+         * Update the readout with the current count
+         */
+        void updateReadout() {
+            mReadout.setText(String.format(Locale.getDefault(), "%d", mCount));
+        }
+
+        /**
+         * Use the given String key to save this count from shared prefrences and display it
+         */
+        void loadCount() {
+            mCount = PreferenceAdapter.getMana(getContext(), mKeyResId);
+            updateReadout();
+        }
+
+        /**
+         * Use the given String key to load this count from shared prefrences
+         */
+        void saveCount() {
+            PreferenceAdapter.setMana(getContext(), mKeyResId, mCount);
+        }
+    }
+
+    private final ArrayList<ManaPoolItem> mManaPoolItems = new ArrayList<>();
 
     /**
      * Create the view and set up the buttons
@@ -31,218 +137,29 @@ public class ManaPoolFragment extends FamiliarFragment {
      * @return The view to be displayed
      */
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View myFragmentView = inflater.inflate(R.layout.mana_pool_frag, container, false);
 
-        mWhite = 0;
-        mBlue = 0;
-        mBlack = 0;
-        mRed = 0;
-        mGreen = 0;
+        /* Clear out the mana pool items, just in case */
+        mManaPoolItems.clear();
 
-        assert myFragmentView != null;
-        Button whiteMinus = (Button) myFragmentView.findViewById(R.id.white_minus);
-        Button blueMinus = (Button) myFragmentView.findViewById(R.id.blue_minus);
-        Button blackMinus = (Button) myFragmentView.findViewById(R.id.black_minus);
-        Button redMinus = (Button) myFragmentView.findViewById(R.id.red_minus);
-        Button greenMinus = (Button) myFragmentView.findViewById(R.id.green_minus);
-        Button colorlessMinus = (Button) myFragmentView.findViewById(R.id.colorless_minus);
-        Button spellMinus = (Button) myFragmentView.findViewById(R.id.spell_minus);
-
-        Button whitePlus = (Button) myFragmentView.findViewById(R.id.white_plus);
-        Button bluePlus = (Button) myFragmentView.findViewById(R.id.blue_plus);
-        Button blackPlus = (Button) myFragmentView.findViewById(R.id.black_plus);
-        Button redPlus = (Button) myFragmentView.findViewById(R.id.red_plus);
-        Button greenPlus = (Button) myFragmentView.findViewById(R.id.green_plus);
-        Button colorlessPlus = (Button) myFragmentView.findViewById(R.id.colorless_plus);
-        Button spellPlus = (Button) myFragmentView.findViewById(R.id.spell_plus);
-
-        mWhiteReadout = (TextView) myFragmentView.findViewById(R.id.white_readout);
-        mBlueReadout = (TextView) myFragmentView.findViewById(R.id.blue_readout);
-        mBlackReadout = (TextView) myFragmentView.findViewById(R.id.black_readout);
-        mRedReadout = (TextView) myFragmentView.findViewById(R.id.red_readout);
-        mGreenReadout = (TextView) myFragmentView.findViewById(R.id.green_readout);
-        mColorlessReadout = (TextView) myFragmentView.findViewById(R.id.colorless_readout);
-        mSpellReadout = (TextView) myFragmentView.findViewById(R.id.spell_readout);
-
-        boolean loadSuccessful = true;
-
-        Button buttons[] = {whiteMinus, blueMinus, blackMinus, redMinus, greenMinus, colorlessMinus, spellMinus,
-                whitePlus, bluePlus, blackPlus, redPlus, greenPlus, colorlessPlus, spellPlus};
-        TextView readouts[] = {mWhiteReadout, mBlueReadout, mBlackReadout, mRedReadout, mGreenReadout, mColorlessReadout,
-                mSpellReadout};
-
-        for (Button e : buttons) {
-            if (e == null) {
-                loadSuccessful = false;
-            }
-        }
-        for (TextView e : readouts) {
-            if (e == null) {
-                loadSuccessful = false;
-            }
-        }
-        if (!loadSuccessful) {
-            ToastWrapper.makeText(this.getActivity(), R.string.mana_pool_error_toast, ToastWrapper.LENGTH_LONG).show();
-            this.getActivity().getSupportFragmentManager().popBackStack();
-            return null;
-        }
-
-        whiteMinus.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                mWhite--;
-                if (mWhite < 0) {
-                    mWhite = 0;
-                }
-                update();
-            }
-        });
-        blueMinus.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                mBlue--;
-                if (mBlue < 0) {
-                    mBlue = 0;
-                }
-                update();
-            }
-        });
-        blackMinus.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                mBlack--;
-                if (mBlack < 0) {
-                    mBlack = 0;
-                }
-                update();
-            }
-        });
-        redMinus.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                mRed--;
-                if (mRed < 0) {
-                    mRed = 0;
-                }
-                update();
-            }
-        });
-        greenMinus.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                mGreen--;
-                if (mGreen < 0) {
-                    mGreen = 0;
-                }
-                update();
-            }
-        });
-        colorlessMinus.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                mColorless--;
-                if (mColorless < 0) {
-                    mColorless = 0;
-                }
-                update();
-            }
-        });
-        spellMinus.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                mSpell--;
-                if (mSpell < 0) {
-                    mSpell = 0;
-                }
-                update();
-            }
-        });
-        whiteMinus.setOnLongClickListener(new Button.OnLongClickListener() {
-            public boolean onLongClick(View view) {
-                mWhite = 0;
-                update();
-                return true;
-            }
-        });
-        blueMinus.setOnLongClickListener(new Button.OnLongClickListener() {
-            public boolean onLongClick(View view) {
-                mBlue = 0;
-                update();
-                return true;
-            }
-        });
-        blackMinus.setOnLongClickListener(new Button.OnLongClickListener() {
-            public boolean onLongClick(View view) {
-                mBlack = 0;
-                update();
-                return true;
-            }
-        });
-        redMinus.setOnLongClickListener(new Button.OnLongClickListener() {
-            public boolean onLongClick(View view) {
-                mRed = 0;
-                update();
-                return true;
-            }
-        });
-        greenMinus.setOnLongClickListener(new Button.OnLongClickListener() {
-            public boolean onLongClick(View view) {
-                mGreen = 0;
-                update();
-                return true;
-            }
-        });
-        colorlessMinus.setOnLongClickListener(new Button.OnLongClickListener() {
-            public boolean onLongClick(View view) {
-                mColorless = 0;
-                update();
-                return true;
-            }
-        });
-        spellMinus.setOnLongClickListener(new Button.OnLongClickListener() {
-            public boolean onLongClick(View view) {
-                mSpell = 0;
-                update();
-                return true;
-            }
-        });
-
-        whitePlus.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                mWhite++;
-                update();
-            }
-        });
-        bluePlus.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                mBlue++;
-                update();
-            }
-        });
-        blackPlus.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                mBlack++;
-                update();
-            }
-        });
-        redPlus.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                mRed++;
-                update();
-            }
-        });
-        greenPlus.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                mGreen++;
-                update();
-            }
-        });
-        colorlessPlus.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                mColorless++;
-                update();
-            }
-        });
-        spellPlus.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                mSpell++;
-                update();
-            }
-        });
+        /* Create and save all the mana pool items */
+        mManaPoolItems.add(new ManaPoolItem(myFragmentView, R.id.white_plus, R.id.white_minus,
+                R.id.white_readout, R.string.key_whiteMana));
+        mManaPoolItems.add(new ManaPoolItem(myFragmentView, R.id.blue_plus, R.id.blue_minus,
+                R.id.blue_readout, R.string.key_blueMana));
+        mManaPoolItems.add(new ManaPoolItem(myFragmentView, R.id.black_plus, R.id.black_minus,
+                R.id.black_readout, R.string.key_blackMana));
+        mManaPoolItems.add(new ManaPoolItem(myFragmentView, R.id.red_plus, R.id.red_minus,
+                R.id.red_readout, R.string.key_redMana));
+        mManaPoolItems.add(new ManaPoolItem(myFragmentView, R.id.green_plus, R.id.green_minus,
+                R.id.green_readout, R.string.key_greenMana));
+        mManaPoolItems.add(new ManaPoolItem(myFragmentView, R.id.colorless_plus, R.id.colorless_minus,
+                R.id.colorless_readout, R.string.key_colorlessMana));
+        mManaPoolItems.add(new ManaPoolItem(myFragmentView, R.id.energy_plus, R.id.energy_minus,
+                R.id.energy_readout, R.string.key_energy));
+        mManaPoolItems.add(new ManaPoolItem(myFragmentView, R.id.spell_plus, R.id.spell_minus,
+                R.id.spell_readout, R.string.key_spellCount));
 
         return myFragmentView;
     }
@@ -253,7 +170,9 @@ public class ManaPoolFragment extends FamiliarFragment {
     @Override
     public void onPause() {
         super.onPause();
-        store();
+        for (ManaPoolItem item : mManaPoolItems) {
+            item.saveCount();
+        }
     }
 
     /**
@@ -262,46 +181,8 @@ public class ManaPoolFragment extends FamiliarFragment {
     @Override
     public void onResume() {
         super.onResume();
-        load();
-        update();
-    }
-
-    /**
-     * Load the mana values from the shared preferences
-     */
-    private void load() {
-        mWhite = getFamiliarActivity().mPreferenceAdapter.getWhiteMana();
-        mBlue = getFamiliarActivity().mPreferenceAdapter.getBlueMana();
-        mBlack = getFamiliarActivity().mPreferenceAdapter.getBlackMana();
-        mRed = getFamiliarActivity().mPreferenceAdapter.getRedMana();
-        mGreen = getFamiliarActivity().mPreferenceAdapter.getGreenMana();
-        mColorless = getFamiliarActivity().mPreferenceAdapter.getColorlessMana();
-        mSpell = getFamiliarActivity().mPreferenceAdapter.getSpellCount();
-    }
-
-    /**
-     * Save the mana values in the shared preferences
-     */
-    private void store() {
-        getFamiliarActivity().mPreferenceAdapter.setWhiteMana(mWhite);
-        getFamiliarActivity().mPreferenceAdapter.setBlueMana(mBlue);
-        getFamiliarActivity().mPreferenceAdapter.setBlackMana(mBlack);
-        getFamiliarActivity().mPreferenceAdapter.setRedMana(mRed);
-        getFamiliarActivity().mPreferenceAdapter.setGreenMana(mGreen);
-        getFamiliarActivity().mPreferenceAdapter.setColorlessMana(mColorless);
-        getFamiliarActivity().mPreferenceAdapter.setSpellCount(mSpell);
-    }
-
-    /**
-     * Display the loaded mana values in the TextViews
-     */
-    private void update() {
-        TextView readouts[] = {mWhiteReadout, mBlueReadout, mBlackReadout, mRedReadout, mGreenReadout,
-                mColorlessReadout, mSpellReadout};
-        int values[] = {mWhite, mBlue, mBlack, mRed, mGreen, mColorless, mSpell};
-
-        for (int ii = 0; ii < readouts.length; ii++) {
-            readouts[ii].setText("" + values[ii]);
+        for (ManaPoolItem item : mManaPoolItems) {
+            item.loadCount();
         }
     }
 
@@ -315,15 +196,9 @@ public class ManaPoolFragment extends FamiliarFragment {
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.clear_all:
-                getFamiliarActivity().mPreferenceAdapter.setWhiteMana(0);
-                getFamiliarActivity().mPreferenceAdapter.setBlueMana(0);
-                getFamiliarActivity().mPreferenceAdapter.setBlackMana(0);
-                getFamiliarActivity().mPreferenceAdapter.setRedMana(0);
-                getFamiliarActivity().mPreferenceAdapter.setGreenMana(0);
-                getFamiliarActivity().mPreferenceAdapter.setColorlessMana(0);
-                getFamiliarActivity().mPreferenceAdapter.setSpellCount(0);
-                load();
-                update();
+                for (ManaPoolItem manaPoolItem : mManaPoolItems) {
+                    manaPoolItem.clearCount();
+                }
                 return true;
             default:
                 return super.onOptionsItemSelected(item);

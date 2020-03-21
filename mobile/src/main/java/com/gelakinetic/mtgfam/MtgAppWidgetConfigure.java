@@ -1,15 +1,31 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam;
 
 import android.app.Activity;
 import android.app.Dialog;
 import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
 
-import com.afollestad.materialdialogs.DialogAction;
 import com.afollestad.materialdialogs.MaterialDialog;
 import com.gelakinetic.mtgfam.helpers.MTGFamiliarAppWidgetProvider;
 import com.gelakinetic.mtgfam.helpers.PreferenceAdapter;
@@ -23,20 +39,21 @@ import java.util.Set;
  */
 public class MtgAppWidgetConfigure extends Activity {
 
-    private PreferenceAdapter mPrefAdapter;
     private String[] mLaunchers;
     private Integer[] mSelectedIndices;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        mPrefAdapter = new PreferenceAdapter(this);
 
         /* Get all the widget buttons */
         mLaunchers = getResources().getStringArray(R.array.default_fragment_array_entries);
 
         /* Figure out which ones are already selected */
-        Set<String> defaults = mPrefAdapter.getWidgetButtons();
+        Set<String> defaults = PreferenceAdapter.getWidgetButtons(this);
+        if (null == defaults) {
+            return;
+        }
         ArrayList<Integer> selectedIndicesTmp = new ArrayList<>();
         for (int i = 0; i < mLaunchers.length; i++) {
             if (defaults.contains(mLaunchers[i])) {
@@ -49,32 +66,19 @@ public class MtgAppWidgetConfigure extends Activity {
         /* Build the dialog */
         MaterialDialog.Builder adb = new MaterialDialog.Builder(this);
         adb
-                .items(mLaunchers)
+                .items((CharSequence[]) mLaunchers)
                 .alwaysCallMultiChoiceCallback()
-                .itemsCallbackMultiChoice(mSelectedIndices, new MaterialDialog.ListCallbackMultiChoice() {
-                    @Override
-                    public boolean onSelection(MaterialDialog dialog, Integer[] which, CharSequence[] text) {
-                        mSelectedIndices = which;
-                        return true;
-                    }
+                .itemsCallbackMultiChoice(mSelectedIndices, (dialog, which, text) -> {
+                    mSelectedIndices = which;
+                    return true;
                 })
                 .positiveText(R.string.dialog_ok)
-                .onPositive(new MaterialDialog.SingleButtonCallback() {
-                    @Override
-                    public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-                        finishAndUpdateWidget();
-                    }
-                })
+                .onPositive((dialog, which) -> finishAndUpdateWidget())
                 .title(R.string.pref_widget_mode_title);
 
         Dialog d = adb.build();
         /* Set the onDismissListener to finish the activity and refresh the widget */
-        d.setOnDismissListener(new DialogInterface.OnDismissListener() {
-            @Override
-            public void onDismiss(DialogInterface dialogInterface) {
-                finishAndUpdateWidget();
-            }
-        });
+        d.setOnDismissListener(dialogInterface -> finishAndUpdateWidget());
         d.show();
     }
 
@@ -87,7 +91,7 @@ public class MtgAppWidgetConfigure extends Activity {
         for (Integer mSelectedIndex : mSelectedIndices) {
             selectedButtons.add(mLaunchers[mSelectedIndex]);
         }
-        mPrefAdapter.setWidgetButtons(selectedButtons);
+        PreferenceAdapter.setWidgetButtons(this, selectedButtons);
 
         /* Get the widget id */
         int mAppWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID;
@@ -104,7 +108,7 @@ public class MtgAppWidgetConfigure extends Activity {
         assert AppWidgetManager.getInstance(getApplication()) != null;
         AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(getApplication());
         assert appWidgetManager != null;
-        int ids[] = appWidgetManager.getAppWidgetIds(
+        int[] ids = appWidgetManager.getAppWidgetIds(
                 new ComponentName(getApplication(), MTGFamiliarAppWidgetProvider.class));
         intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids);
         sendBroadcast(intent);

@@ -1,18 +1,18 @@
-/**
+/*
  * Copyright 2014 Devin Collins
- * <p/>
+ *
  * This file is part of MTG Familiar.
- * <p/>
+ *
  * MTG Familiar is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * <p/>
+ *
  * MTG Familiar is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * <p/>
+ *
  * You should have received a copy of the GNU General Public License
  * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -31,9 +31,14 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+
 import com.gelakinetic.mtgfam.FamiliarActivity;
 import com.gelakinetic.mtgfam.R;
 import com.gelakinetic.mtgfam.fragments.dialogs.ProfileDialogFragment;
+import com.gelakinetic.mtgfam.helpers.PreferenceAdapter;
+
+import java.util.Objects;
 
 /**
  * This fragment contains a players profile information such as their DCI number and anything else
@@ -61,19 +66,19 @@ public class ProfileFragment extends FamiliarFragment {
      * @return The inflated view
      */
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 
         View myFragmentView = inflater.inflate(R.layout.profile_frag, container, false);
 
         assert myFragmentView != null;
-        mBarcodeTextView = (TextView) myFragmentView.findViewById(R.id.barcode);
-        mDCINumberTextView = (TextView) myFragmentView.findViewById(R.id.dci_number);
-        mNoDCINumberTextView = (TextView) myFragmentView.findViewById(R.id.no_dci_number);
+        mBarcodeTextView = myFragmentView.findViewById(R.id.barcode);
+        mDCINumberTextView = myFragmentView.findViewById(R.id.dci_number);
+        mNoDCINumberTextView = myFragmentView.findViewById(R.id.no_dci_number);
 
-        Typeface tf = Typeface.createFromAsset(getActivity().getAssets(), "free3of9.ttf");
+        Typeface tf = Typeface.createFromAsset(Objects.requireNonNull(getActivity()).getAssets(), "free3of9.ttf");
         mBarcodeTextView.setTypeface(tf);
 
-        mDCINumber = getFamiliarActivity().mPreferenceAdapter.getDCINumber();
+        mDCINumber = PreferenceAdapter.getDCINumber(getContext());
 
         checkDCINumber();
 
@@ -103,7 +108,7 @@ public class ProfileFragment extends FamiliarFragment {
                 showDialog();
                 return true;
             case R.id.profile_menu_remove_dci:
-                getFamiliarActivity().mPreferenceAdapter.setDCINumber("");
+                PreferenceAdapter.setDCINumber(getContext(), "");
                 mDCINumber = "";
                 checkDCINumber();
                 return true;
@@ -159,7 +164,7 @@ public class ProfileFragment extends FamiliarFragment {
         } else {
             showDCINumber();
         }
-        getActivity().supportInvalidateOptionsMenu();
+        Objects.requireNonNull(getActivity()).invalidateOptionsMenu();
     }
 
     private void hideDCINumber() {
@@ -175,7 +180,7 @@ public class ProfileFragment extends FamiliarFragment {
         mDCINumberTextView.setVisibility(View.VISIBLE);
         mBarcodeTextView.setVisibility(View.VISIBLE);
 
-        mNoDCINumberTextView.setText(Html.fromHtml("<a href=\"http://www.wizards.com/Magic/PlaneswalkerPoints/" + mDCINumber + "\">" + getString(R.string.profile_planeswalker_points) + "</a>"));
+        mNoDCINumberTextView.setText(Html.fromHtml("<a href=\"https://www.wizards.com/Magic/PlaneswalkerPoints/" + mDCINumber + "\">" + getString(R.string.profile_planeswalker_points) + "</a>"));
         mNoDCINumberTextView.setClickable(true);
         mNoDCINumberTextView.setMovementMethod(LinkMovementMethod.getInstance());
     }

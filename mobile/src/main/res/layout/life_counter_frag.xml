@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?><!--
-Copyright 2011 Adam Feinstein
-
-This file is part of MTG Familiar.
-
-MTG Familiar is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-MTG Familiar is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
--->
+  ~ Copyright 2017 Adam Feinstein
+  ~
+  ~ This file is part of MTG Familiar.
+  ~
+  ~ MTG Familiar is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ MTG Familiar is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU General Public License
+  ~ along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+  -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/linear_layout_root"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="fill_parent"
     android:layout_height="fill_parent"
     android:orientation="vertical">
@@ -51,7 +51,6 @@ along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
     <!-- Command bar: reset, poison, etc. -->
 
     <LinearLayout
-        android:id="@+id/linearLayout2"
         android:layout_width="fill_parent"
         android:layout_height="48dp"
         android:gravity="center">
@@ -64,7 +63,8 @@ along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
             android:layout_weight="1"
             android:padding="15dp"
             android:scaleType="center"
-            android:src="@drawable/lc_life_enabled" />
+            app:srcCompat="@drawable/lc_life"
+            android:tint="?attr/lc_enabled" />
 
         <ImageView
             android:id="@+id/poison_button"
@@ -74,7 +74,8 @@ along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
             android:layout_weight="1"
             android:padding="15dp"
             android:scaleType="center"
-            android:src="@drawable/lc_poison_enabled" />
+            app:srcCompat="@drawable/lc_poison"
+            android:tint="?attr/lc_enabled" />
 
         <ImageView
             android:id="@+id/commander_button"
@@ -84,7 +85,8 @@ along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
             android:layout_weight="1"
             android:padding="15dp"
             android:scaleType="center"
-            android:src="@drawable/lc_commander_enabled" />
+            app:srcCompat="@drawable/lc_commander"
+            android:tint="?attr/lc_enabled" />
 
         <ImageView
             android:id="@+id/reset_button"
@@ -94,7 +96,7 @@ along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
             android:layout_weight="1"
             android:padding="15dp"
             android:scaleType="center"
-            android:src="@drawable/lc_reset" />
+            app:srcCompat="@drawable/lc_reset" />
     </LinearLayout>
 
 </LinearLayout>

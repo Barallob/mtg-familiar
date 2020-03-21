@@ -1,10 +1,29 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.helpers.gatherings;
 
-import android.content.Context;
+import android.app.Activity;
 import android.util.Xml;
 
 import com.gelakinetic.mtgfam.R;
-import com.gelakinetic.mtgfam.helpers.ToastWrapper;
+import com.gelakinetic.mtgfam.helpers.SnackbarWrapper;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -141,7 +160,7 @@ public class GatheringsIO {
                 serializer.endTag("", "name");
 
                 serializer.startTag("", "startinglife");
-                serializer.text(String.valueOf(life));
+                serializer.text(life);
                 serializer.endTag("", "startinglife");
 
                 serializer.endTag("", "player");
@@ -310,11 +329,11 @@ public class GatheringsIO {
      * @param filesDir The absolute path to the directory on the filesystem where files created with
      *                 openFileOutput(String, int) are stored.
      */
-    public static void DeleteGathering(String fileName, File filesDir, Context ctx) {
+    public static void DeleteGathering(String fileName, File filesDir, Activity activity) {
         File path = new File(filesDir, FOLDER_PATH);
         File gatheringFile = new File(path, fileName);
         if (!gatheringFile.delete()) {
-            ToastWrapper.makeText(ctx, fileName + " " + ctx.getString(R.string.not_deleted), ToastWrapper.LENGTH_LONG).show();
+            SnackbarWrapper.makeAndShowText(activity, fileName + " " + activity.getString(R.string.not_deleted), SnackbarWrapper.LENGTH_LONG);
         }
     }
 
@@ -325,10 +344,10 @@ public class GatheringsIO {
      * @param filesDir The absolute path to the directory on the filesystem where files created with
      *                 openFileOutput(String, int) are stored.
      */
-    public static void DeleteGatheringByName(String _name, File filesDir, Context ctx) {
+    public static void DeleteGatheringByName(String _name, File filesDir, Activity activity) {
         for (String fileName : getGatheringFileList(filesDir)) {
             if (_name.equals(ReadGatheringNameFromXML(fileName, filesDir))) {
-                DeleteGathering(fileName, filesDir, ctx);
+                DeleteGathering(fileName, filesDir, activity);
             }
         }
     }

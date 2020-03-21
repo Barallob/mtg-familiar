@@ -1,18 +1,18 @@
-/**
+/*
  * Copyright 2012 Michael Shick
- * <p/>
+ *
  * This file is part of MTG Familiar.
- * <p/>
+ *
  * MTG Familiar is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * <p/>
+ *
  * MTG Familiar is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * <p/>
+ *
  * You should have received a copy of the GNU General Public License
  * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -23,21 +23,25 @@ import android.app.PendingIntent;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteException;
 import android.os.Environment;
 import android.os.Handler;
-import android.support.v4.app.NotificationCompat;
-import android.support.v4.app.NotificationManagerCompat;
 
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
+
+import com.gelakinetic.GathererScraper.JsonTypes.Card;
 import com.gelakinetic.GathererScraper.JsonTypes.Expansion;
 import com.gelakinetic.GathererScraper.JsonTypes.LegalityData;
 import com.gelakinetic.GathererScraper.JsonTypes.Manifest;
 import com.gelakinetic.mtgfam.FamiliarActivity;
 import com.gelakinetic.mtgfam.R;
-import com.gelakinetic.mtgfam.helpers.MtgCard;
+import com.gelakinetic.mtgfam.helpers.NotificationHelper;
 import com.gelakinetic.mtgfam.helpers.PreferenceAdapter;
 import com.gelakinetic.mtgfam.helpers.database.CardDbAdapter;
 import com.gelakinetic.mtgfam.helpers.database.DatabaseManager;
 import com.gelakinetic.mtgfam.helpers.database.FamiliarDbException;
+import com.gelakinetic.mtgfam.helpers.database.FamiliarDbHandle;
 import com.google.gson.stream.JsonReader;
 
 import java.io.File;
@@ -50,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -59,10 +64,10 @@ public class DbUpdaterService extends IntentService {
 
     /* Status Codes */
     private static final int STATUS_NOTIFICATION = 31;
-    private static final int UPDATED_NOTIFICATION = 32;
+
+    private static final int FOREGROUND_SERVICE_ID = 295869032;
 
     /* To build and display the notification */
-    private NotificationManagerCompat mNotificationManager;
     private NotificationCompat.Builder mBuilder;
 
     /* To keep track of progress percentage when adding cards in a set */
@@ -86,12 +91,12 @@ public class DbUpdaterService extends IntentService {
         super.onCreate();
 
         mHandler = new Handler();
-        mNotificationManager = NotificationManagerCompat.from(this);
 
         Intent intent = new Intent(this, FamiliarActivity.class);
         PendingIntent mNotificationIntent = PendingIntent.getActivity(this, 0, intent, 0);
 
-        mBuilder = new NotificationCompat.Builder(this.getApplicationContext());
+        NotificationHelper.createChannels(this);
+        mBuilder = new NotificationCompat.Builder(this.getApplicationContext(), NotificationHelper.NOTIFICATION_CHANNEL_UPDATE);
         mBuilder.setContentTitle(getString(R.string.app_name))
                 .setContentText(getString(R.string.update_notification))
                 .setSmallIcon(R.drawable.notification_icon)
@@ -99,6 +104,8 @@ public class DbUpdaterService extends IntentService {
                 .setWhen(System.currentTimeMillis())
                 .setOngoing(true)
                 .setOnlyAlertOnce(true);
+
+        startForeground(FOREGROUND_SERVICE_ID, mBuilder.build());
     }
 
     /**
@@ -111,6 +118,7 @@ public class DbUpdaterService extends IntentService {
     public void onHandleIntent(Intent intent) {
 
         showStatusNotification();
+        switchToChecking();
 
         /* Try to open up a log */
         PrintWriter logWriter = null;
@@ -127,42 +135,75 @@ public class DbUpdaterService extends IntentService {
         }
 
         try {
-            PreferenceAdapter mPrefAdapter = new PreferenceAdapter(this);
-
             ProgressReporter reporter = new ProgressReporter();
             ArrayList<String> updatedStuff = new ArrayList<>();
             CardAndSetParser parser = new CardAndSetParser();
             boolean commitDates = true;
             boolean newRulesParsed = false;
 
-            try {
-                ArrayList<MtgCard> cardsToAdd = new ArrayList<>();
-                ArrayList<Expansion> setsToAdd = new ArrayList<>();
-                ArrayList<String> setsToDrop = new ArrayList<>();
+            /* Look for updates with the banned / restricted lists and formats */
+            LegalityData legalityData = parser.readLegalityJsonStream(this, logWriter);
 
-                /* Look for updates with the banned / restricted lists and formats */
-                LegalityData legalityDatas = parser.readLegalityJsonStream(mPrefAdapter, logWriter);
+            /* Log the date */
+            if (logWriter != null) {
+                logWriter.write("mCurrentRulesDate: " + parser.mCurrentLegalityTimestamp + '\n');
+            }
 
-                /* Log the date */
+            if (legalityData != null) {
                 if (logWriter != null) {
-                    logWriter.write("mCurrentRulesDate: " + parser.mCurrentRulesTimestamp + '\n');
+                    logWriter.write("Adding new legalityData" + '\n');
                 }
 
-                /* Look for new cards */
-                Manifest manifest = parser.readUpdateJsonStream(logWriter);
+                /* Open a writable database, insert the legality data */
+                FamiliarDbHandle legalHandle = new FamiliarDbHandle();
+                try {
+                    SQLiteDatabase database = DatabaseManager.openDatabase(getApplicationContext(), true, legalHandle);
+                    /* Add all the data we've downloaded */
+                    CardDbAdapter.dropLegalTables(database);
+                    CardDbAdapter.createLegalTables(database);
 
-                /* Log the date */
-                if (logWriter != null) {
-                    logWriter.write("mCurrentPatchDate: " + parser.mCurrentPatchTimestamp + '\n');
+                    for (LegalityData.Format format : legalityData.mFormats) {
+                        CardDbAdapter.createFormat(format.mName, database);
+
+                        for (String legalSet : format.mSets) {
+                            CardDbAdapter.addLegalSet(legalSet, format.mName, database);
+                        }
+
+                        for (String bannedCard : format.mBanlist) {
+                            CardDbAdapter.addLegalCard(bannedCard, format.mName, CardDbAdapter.BANNED, database);
+                        }
+
+                        for (String restrictedCard : format.mRestrictedlist) {
+                            CardDbAdapter.addLegalCard(restrictedCard, format.mName, CardDbAdapter.RESTRICTED, database);
+                        }
+                    }
+                } catch (SQLiteException | FamiliarDbException e) {
+                    commitDates = false; /* don't commit the dates */
+                    if (logWriter != null) {
+                        e.printStackTrace(logWriter);
+                    }
+                } finally {
+                    /* Close the writable database */
+                    DatabaseManager.closeDatabase(getApplicationContext(), legalHandle);
                 }
+            }
 
-                if (manifest != null) {
-                    /* Make an arraylist of all the current set codes */
-                    ArrayList<String> currentSetCodes = new ArrayList<>();
-                    HashMap<String, String> storedDigests = new HashMap<>();
+            /* Change the notification to generic "checking for updates" */
+            switchToChecking();
+
+            /* Look for new cards */
+            Manifest manifest = parser.readUpdateJsonStream(getApplicationContext(), logWriter);
+
+            if (manifest != null) {
+                /* Make an arraylist of all the current set codes */
+                ArrayList<String> currentSetCodes = new ArrayList<>();
+                HashMap<String, String> storedDigests = new HashMap<>();
+                Cursor setCursor = null;
+                FamiliarDbHandle setsHandle = new FamiliarDbHandle();
+                try {
                     /* Get readable database access */
-                    SQLiteDatabase database = DatabaseManager.getInstance(getApplicationContext(), false).openDatabase(false);
-                    Cursor setCursor = CardDbAdapter.fetchAllSets(database);
+                    SQLiteDatabase database = DatabaseManager.openDatabase(getApplicationContext(), false, setsHandle);
+                    setCursor = CardDbAdapter.fetchAllSets(database);
                     if (setCursor != null) {
                         setCursor.moveToFirst();
                         while (!setCursor.isAfterLast()) {
@@ -172,169 +213,172 @@ public class DbUpdaterService extends IntentService {
                             currentSetCodes.add(code);
                             setCursor.moveToNext();
                         }
-                        /* Cleanup */
+                    }
+                } catch (SQLiteException | FamiliarDbException e) {
+                    commitDates = false; /* don't commit the dates */
+                    if (logWriter != null) {
+                        e.printStackTrace(logWriter);
+                    }
+                } finally {
+                    if (null != setCursor) {
                         setCursor.close();
                     }
-                    DatabaseManager.getInstance(getApplicationContext(), false).closeDatabase(false);
+                    DatabaseManager.closeDatabase(getApplicationContext(), setsHandle);
+                }
 
-                    /* Look through the list of available patches, and if it doesn't exist in the database, add it. */
+                /* Look through the manifest and drop all out of date sets */
+                FamiliarDbHandle manifestHandle = new FamiliarDbHandle();
+                try {
+                    SQLiteDatabase database = DatabaseManager.openDatabase(getApplicationContext(), true, manifestHandle);
                     for (Manifest.ManifestEntry set : manifest.mPatches) {
-                        if (!set.mCode.equals("DD3")) { /* Never download the old Duel Deck Anthologies patch */
-                            try {
-                                /* If the digest doesn't match, mark the set for dropping
-                                 * and remove it from currentSetCodes so it redownloads
-                                 */
-                                if (set.mDigest != null && !storedDigests.get(set.mCode).equals(set.mDigest)) {
-                                    currentSetCodes.remove(set.mCode);
-                                    setsToDrop.add(set.mCode);
+                        try {
+                            /* If the digest doesn't match, mark the set for dropping
+                             * and remove it from currentSetCodes so it redownloads
+                             */
+                            if (set.mDigest != null && !Objects.requireNonNull(storedDigests.get(set.mCode)).equals(set.mDigest)) {
+                                if (logWriter != null) {
+                                    logWriter.write("Dropping expansion: " + set.mCode + '\n');
                                 }
-                            } catch (NullPointerException e) {
-                                /* eat it */
+                                currentSetCodes.remove(set.mCode);
+                                CardDbAdapter.dropSetAndCards(set.mCode, database);
                             }
+                        } catch (NullPointerException e) {
+                            /* eat it */
+                        }
+                    }
+                } catch (SQLiteException | FamiliarDbException e) {
+                    commitDates = false; /* don't commit the dates */
+                    if (logWriter != null) {
+                        e.printStackTrace(logWriter);
+                    }
+                } finally {
+                    DatabaseManager.closeDatabase(getApplicationContext(), manifestHandle);
+                }
 
-                            if (!currentSetCodes.contains(set.mCode)) { /* check to see if the patch is known already */
-                                int retries = 5;
-                                while (retries > 0) {
+                /* Look through the list of available patches, and if it doesn't exist in the database, add it. */
+                for (Manifest.ManifestEntry set : manifest.mPatches) {
+                    if (!set.mCode.equals("DD3") && /* Never download the old Duel Deck Anthologies patch */
+                            !currentSetCodes.contains(set.mCode)) { /* check to see if the patch is known already */
+                        int retries = 5;
+                        while (retries > 0) {
+                            try {
+                                /* Change the notification to the specific set */
+                                switchToUpdating(String.format(getString(R.string.update_updating_set), set.mName));
+                                InputStream streamToRead = FamiliarActivity.getHttpInputStream(set.mURL, logWriter, getApplicationContext());
+                                if (streamToRead != null) {
+                                    ArrayList<Card> cardsToAdd = new ArrayList<>();
+                                    ArrayList<Expansion> setsToAdd = new ArrayList<>();
+
+                                    GZIPInputStream gis = new GZIPInputStream(streamToRead);
+                                    JsonReader reader = new JsonReader(new InputStreamReader(gis, "UTF-8"));
+                                    parser.readCardJsonStream(reader, cardsToAdd, setsToAdd);
+                                    streamToRead.close();
+                                    updatedStuff.add(set.mName);
+                                    /* Everything was successful, retries = 0 breaks the while loop */
+                                    retries = 0;
+
+                                    /* After the download, open the database */
+                                    FamiliarDbHandle expansionHandle = new FamiliarDbHandle();
                                     try {
-                                        /* Change the notification to the specific set */
-                                        switchToUpdating(String.format(getString(R.string.update_updating_set), set.mName));
-                                        InputStream streamToRead = FamiliarActivity.getHttpInputStream(set.mURL, logWriter);
-                                        if (streamToRead != null) {
-                                            GZIPInputStream gis = new GZIPInputStream(streamToRead);
-                                            JsonReader reader = new JsonReader(new InputStreamReader(gis, "UTF-8"));
-                                            parser.readCardJsonStream(reader, reporter, cardsToAdd, setsToAdd);
-                                            streamToRead.close();
-                                            updatedStuff.add(set.mName);
-                                            /* Everything was successful, retries = 0 breaks the while loop */
-                                            retries = 0;
+                                        SQLiteDatabase database = DatabaseManager.openDatabase(getApplicationContext(), true, expansionHandle);
+                                        /* Insert the newly downloaded info */
+                                        for (Expansion expansion : setsToAdd) {
+                                            if (logWriter != null) {
+                                                logWriter.write("Adding expansion: " + expansion.mCode_gatherer + '\n');
+                                            }
+
+                                            CardDbAdapter.createSet(expansion, database);
                                         }
-                                    } catch (IOException e) {
+                                        int cardsAdded = 0;
+                                        for (Card card : cardsToAdd) {
+                                            CardDbAdapter.createCard(card, database);
+                                            cardsAdded++;
+                                            mProgress = (int) (100 * (cardsAdded / (float) cardsToAdd.size()));
+                                        }
+
+                                    } catch (SQLiteException | FamiliarDbException e) {
+                                        commitDates = false; /* don't commit the dates */
                                         if (logWriter != null) {
-                                            logWriter.print("Retry " + retries + '\n');
                                             e.printStackTrace(logWriter);
                                         }
+                                    } finally {
+                                        /* Close the database */
+                                        DatabaseManager.closeDatabase(getApplicationContext(), expansionHandle);
                                     }
-                                    retries--;
+                                }
+                            } catch (IOException e) {
+                                if (logWriter != null) {
+                                    logWriter.print("Retry " + retries + '\n');
+                                    e.printStackTrace(logWriter);
                                 }
                             }
+                            retries--;
                         }
                     }
-                }
-
-                /* Change the notification to generic "checking for updates" */
-                switchToChecking();
-
-                /* Parse the rules
-                 * Instead of using a hardcoded string, the default lastRulesUpdate is the timestamp of when the APK was
-                 * built. This is a safe assumption to make, since any market release will have the latest database baked
-                 * in.
-                 */
-
-                long lastRulesUpdate = mPrefAdapter.getLastRulesUpdate();
-
-                RulesParser rp = new RulesParser(new Date(lastRulesUpdate), reporter);
-                ArrayList<RulesParser.RuleItem> rulesToAdd = new ArrayList<>();
-                ArrayList<RulesParser.GlossaryItem> glossaryItemsToAdd = new ArrayList<>();
-
-                if (rp.needsToUpdate(logWriter)) {
-                    switchToUpdating(getString(R.string.update_updating_rules));
-                    if (rp.parseRules(logWriter)) {
-                        rp.loadRulesAndGlossary(rulesToAdd, glossaryItemsToAdd);
-
-                        /* Only save the timestamp of this if the update was 100% successful; if something went screwy, we
-                         * should let them know and try again next update.
-                         */
-                        newRulesParsed = true;
-                        updatedStuff.add(getString(R.string.update_added_rules));
-                    }
-                    switchToChecking();
-                }
-
-                if (logWriter != null) {
-                    logWriter.write("legalityDatas: " + ((legalityDatas == null) ? "null" : "not null") + '\n');
-                    logWriter.write("setsToAdd: " + setsToAdd.size() + '\n');
-                    logWriter.write("cardsToAdd: " + cardsToAdd.size() + '\n');
-                    logWriter.write("rulesToAdd: " + rulesToAdd.size() + '\n');
-                    logWriter.write("glossaryItemsToAdd: " + glossaryItemsToAdd.size() + '\n');
-                }
-
-                /* Open a writable database, as briefly as possible */
-                if (legalityDatas != null ||
-                        setsToDrop.size() > 0 ||
-                        setsToAdd.size() > 0 ||
-                        cardsToAdd.size() > 0 ||
-                        rulesToAdd.size() > 0 ||
-                        glossaryItemsToAdd.size() > 0) {
-                    SQLiteDatabase database = DatabaseManager.getInstance(getApplicationContext(), true).openDatabase(true);
-                    /* Add all the data we've downloaded */
-                    if (legalityDatas != null) {
-                        CardDbAdapter.dropLegalTables(database);
-                        CardDbAdapter.createLegalTables(database);
-
-                        for(LegalityData.Format format : legalityDatas.mFormats) {
-                            CardDbAdapter.createFormat(format.mName, database);
-
-                            for (String legalSet : format.mSets) {
-                                CardDbAdapter.addLegalSet(legalSet, format.mName, database);
-                            }
-
-                            for (String bannedCard : format.mBanlist) {
-                                CardDbAdapter.addLegalCard(bannedCard, format.mName, CardDbAdapter.BANNED, database);
-                            }
-
-                            for (String restrictedCard : format.mRestrictedlist) {
-                                CardDbAdapter.addLegalCard(restrictedCard, format.mName, CardDbAdapter.RESTRICTED, database);
-                            }
-                        }
-                    }
-
-                    /* Drop any out of date sets */
-                    for (String code : setsToDrop) {
-                        CardDbAdapter.dropSetAndCards(code, database);
-                    }
-
-                    /* Add set data */
-                    for (Expansion set : setsToAdd) {
-                        CardDbAdapter.createSet(set, database);
-
-                        /* Add the corresponding TCG name */
-                        CardDbAdapter.addTcgName(set.mName_tcgp, set.mCode_gatherer, database);
-
-                        /* Add the corresponding foil information */
-                        CardDbAdapter.addFoilInfo(set.mCanBeFoil, set.mCode_gatherer, database);
-                    }
-
-                    /* Add cards */
-                    for (MtgCard card : cardsToAdd) {
-                        CardDbAdapter.createCard(card, database);
-                    }
-
-                    /* Add stored rules */
-                    if (rulesToAdd.size() > 0 || glossaryItemsToAdd.size() > 0) {
-                        CardDbAdapter.dropRulesTables(database);
-                        CardDbAdapter.createRulesTables(database);
-                    }
-
-                    for (RulesParser.RuleItem rule : rulesToAdd) {
-                        CardDbAdapter.insertRule(rule.category, rule.subcategory, rule.entry, rule.text, rule.position, database);
-                    }
-
-                    for (RulesParser.GlossaryItem term : glossaryItemsToAdd) {
-                        CardDbAdapter.insertGlossaryTerm(term.term, term.definition, database);
-                    }
-
-                    /* Close the writable database */
-                    DatabaseManager.getInstance(getApplicationContext(), true).closeDatabase(true);
-                }
-            } catch (FamiliarDbException e1) {
-                commitDates = false; /* don't commit the dates */
-                if (logWriter != null) {
-                    e1.printStackTrace(logWriter);
                 }
             }
 
+            /* Change the notification to generic "checking for updates" */
+            switchToChecking();
+
+            /* Parse the rules
+             * Instead of using a hardcoded string, the default lastRulesUpdate is the timestamp of when the APK was
+             * built. This is a safe assumption to make, since any market release will have the latest database baked
+             * in.
+             */
+
+            long lastRulesUpdate = PreferenceAdapter.getLastRulesUpdate(this);
+
+            RulesParser rp = new RulesParser(new Date(lastRulesUpdate), reporter);
+
+            if (rp.needsToUpdate(getApplicationContext(), logWriter)) {
+                switchToUpdating(getString(R.string.update_updating_rules));
+                if (rp.parseRules(logWriter)) {
+                    ArrayList<RulesParser.RuleItem> rulesToAdd = new ArrayList<>();
+                    ArrayList<RulesParser.GlossaryItem> glossaryItemsToAdd = new ArrayList<>();
+                    rp.loadRulesAndGlossary(rulesToAdd, glossaryItemsToAdd);
+
+                    /* Only save the timestamp of this if the update was 100% successful; if something went screwy, we
+                     * should let them know and try again next update.
+                     */
+                    newRulesParsed = true;
+
+                    /* Open the database */
+                    FamiliarDbHandle rulesHandle = new FamiliarDbHandle();
+                    try {
+
+                        SQLiteDatabase database = DatabaseManager.openDatabase(getApplicationContext(), true, rulesHandle);
+
+                        /* Add stored rules */
+                        if (rulesToAdd.size() > 0 || glossaryItemsToAdd.size() > 0) {
+                            CardDbAdapter.dropRulesTables(database);
+                            CardDbAdapter.createRulesTables(database);
+                        }
+
+                        for (RulesParser.RuleItem rule : rulesToAdd) {
+                            CardDbAdapter.insertRule(rule.category, rule.subcategory, rule.entry, rule.text, rule.position, database);
+                        }
+
+                        for (RulesParser.GlossaryItem term : glossaryItemsToAdd) {
+                            CardDbAdapter.insertGlossaryTerm(term.term, term.definition, database);
+                        }
+                        updatedStuff.add(getString(R.string.update_added_rules));
+                    } catch (SQLiteException | FamiliarDbException e) {
+                        commitDates = false; /* don't commit the dates */
+                        if (logWriter != null) {
+                            e.printStackTrace(logWriter);
+                        }
+                    } finally {
+                        DatabaseManager.closeDatabase(getApplicationContext(), rulesHandle);
+                    }
+                }
+            }
+
+            /* Change the notification to generic "checking for updates" */
+            switchToChecking();
+
             /* Parse the MTR and IPG */
-            MTRIPGParser mtrIpgParser = new MTRIPGParser(mPrefAdapter, this);
+            MTRIPGParser mtrIpgParser = new MTRIPGParser(this);
             if (mtrIpgParser.performMtrIpgUpdateIfNeeded(MTRIPGParser.MODE_MTR, logWriter)) {
                 updatedStuff.add(getString(R.string.update_added_mtr));
             }
@@ -358,12 +402,12 @@ public class DbUpdaterService extends IntentService {
 
             /* If everything went well so far, commit the date and show the update complete notification */
             if (commitDates) {
-                parser.commitDates(mPrefAdapter);
+                parser.commitDates(this);
 
                 long curTime = new Date().getTime();
-                mPrefAdapter.setLastLegalityUpdate((int) (curTime / 1000));
+                PreferenceAdapter.setLastLegalityUpdate(this, (int) (curTime / 1000));
                 if (newRulesParsed) {
-                    mPrefAdapter.setLastRulesUpdate(curTime);
+                    PreferenceAdapter.setLastRulesUpdate(this, curTime);
                 }
 
                 if (updatedStuff.size() > 0) {
@@ -390,14 +434,14 @@ public class DbUpdaterService extends IntentService {
      * Show the notification in the status bar
      */
     private void showStatusNotification() {
-        mNotificationManager.notify(STATUS_NOTIFICATION, mBuilder.build());
+        startForeground(FOREGROUND_SERVICE_ID, mBuilder.build());
     }
 
     /**
      * Hide the notification in the status bar
      */
     private void cancelStatusNotification() {
-        mNotificationManager.cancel(STATUS_NOTIFICATION);
+        stopForeground(true);
     }
 
     /**
@@ -409,7 +453,7 @@ public class DbUpdaterService extends IntentService {
                 .setContentText(getString(R.string.update_notification))
                 .setProgress(0, 0, false);
 
-        mNotificationManager.notify(STATUS_NOTIFICATION, mBuilder.build());
+        startForeground(FOREGROUND_SERVICE_ID, mBuilder.build());
     }
 
     /**
@@ -420,16 +464,14 @@ public class DbUpdaterService extends IntentService {
     private void switchToUpdating(String title) {
 
         mBuilder.setContentTitle(title);
-        mNotificationManager.notify(STATUS_NOTIFICATION, mBuilder.build());
+        startForeground(FOREGROUND_SERVICE_ID, mBuilder.build());
 
         /* Periodically update the progress bar */
-        mProgressUpdater = new Runnable() {
-            public void run() {
-                mBuilder.setProgress(100, mProgress, false);
-                mNotificationManager.notify(STATUS_NOTIFICATION, mBuilder.build());
-                if (mProgress != 100) {
-                    mHandler.postDelayed(mProgressUpdater, 200);
-                }
+        mProgressUpdater = () -> {
+            mBuilder.setProgress(100, mProgress, false);
+            startForeground(FOREGROUND_SERVICE_ID, mBuilder.build());
+            if (mProgress != 100) {
+                mHandler.postDelayed(mProgressUpdater, 200);
             }
         };
         mHandler.postDelayed(mProgressUpdater, 200);
@@ -445,36 +487,29 @@ public class DbUpdaterService extends IntentService {
             return;
         }
 
-        String body = getString(R.string.update_added) + " ";
-        for (int i = 0; i < newStuff.size(); i++) {
-            body += newStuff.get(i);
-            if (i < newStuff.size() - 1) {
-                body += ", ";
+        StringBuilder body = new StringBuilder(getString(R.string.update_added)).append(" ");
+        boolean first = true;
+        for (String stuff : newStuff) {
+            if (first) {
+                first = false;
+            } else {
+                body.append(", ");
             }
+            body.append(stuff);
         }
 
         mBuilder.setContentTitle(getString(R.string.app_name))
-                .setContentText(body)
+                .setContentText(body.toString())
                 .setAutoCancel(true)
                 .setOngoing(false);
 
-        mNotificationManager.notify(UPDATED_NOTIFICATION, mBuilder.build());
+        NotificationManagerCompat.from(this).notify(STATUS_NOTIFICATION, mBuilder.build());
     }
 
     /**
      * This inner class is used by other parsers to pass progress percentages to the notification
      */
-    private class ProgressReporter implements CardAndSetParser.CardProgressReporter,
-            RulesParser.RulesProgressReporter {
-        /**
-         * This is used by CardAndSetParser to report the progress for adding a set
-         *
-         * @param progress An integer between 0 and 100 representing the progress percent
-         */
-        public void reportJsonCardProgress(int progress) {
-            mProgress = progress;
-        }
-
+    private class ProgressReporter implements RulesParser.RulesProgressReporter {
         /**
          * This is used by RulesParser to report the progress for adding new rules
          *

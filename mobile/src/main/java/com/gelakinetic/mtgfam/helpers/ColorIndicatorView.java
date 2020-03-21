@@ -1,19 +1,39 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.helpers;
 
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.drawable.ShapeDrawable;
 import android.graphics.drawable.shapes.ArcShape;
-import android.support.v4.content.ContextCompat;
 import android.view.View;
+
+import androidx.core.content.ContextCompat;
 
 import com.gelakinetic.mtgfam.R;
 
 import java.util.Arrays;
 
 public class ColorIndicatorView extends View {
-    private static final String COLORS_CHARS[] = {"w", "u", "b", "r", "g"};
-    private static final int COLOR_RESOURCES[] = {
+    private static final String[] COLORS_CHARS = {"w", "u", "b", "r", "g"};
+    private static final int[] COLOR_RESOURCES = {
             R.color.icon_white,
             R.color.icon_blue,
             R.color.icon_black,
@@ -45,7 +65,7 @@ public class ColorIndicatorView extends View {
         super(context);
 
         int shapesIndex = 0;
-        int numColors = 0;
+        float numColors = 0;
 
         /* Sanitize strings to check for a match */
         manacost = sanitizeString(manacost);
@@ -92,7 +112,7 @@ public class ColorIndicatorView extends View {
      */
     private static String sanitizeString(String str) {
         str = str.toLowerCase();
-        boolean colors[] = new boolean[5];
+        boolean[] colors = new boolean[5];
         Arrays.fill(colors, false);
 
         for (int i = 0; i < str.length(); i++) {

@@ -1,18 +1,18 @@
-/**
- * Copyright 2011 Adam Feinstein
- * <p/>
+/*
+ * Copyright 2017 Adam Feinstein
+ *
  * This file is part of MTG Familiar.
- * <p/>
+ *
  * MTG Familiar is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * <p/>
+ *
  * MTG Familiar is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * <p/>
+ *
  * You should have received a copy of the GNU General Public License
  * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -23,7 +23,6 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.database.Cursor;
-import android.support.v4.content.ContextCompat;
 import android.text.Html.ImageGetter;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -31,10 +30,14 @@ import android.view.ViewGroup;
 import android.widget.SimpleCursorAdapter;
 import android.widget.TextView;
 
+import androidx.core.content.ContextCompat;
+
 import com.gelakinetic.mtgfam.R;
 import com.gelakinetic.mtgfam.helpers.database.CardDbAdapter;
 
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Locale;
 
 /**
  * This list adapter is used to display a list of search results. It implements SectionIndexer to enable fast scrolling.
@@ -45,7 +48,6 @@ public class ResultListAdapter extends SimpleCursorAdapter {
     private final int[] mTo;
     private final ImageGetter mImgGetter;
     private final Resources.Theme mTheme;
-    private final Resources mResources;
 
     /**
      * Standard Constructor.
@@ -62,7 +64,6 @@ public class ResultListAdapter extends SimpleCursorAdapter {
         super(context, R.layout.result_list_card_row, cursor, from, to, 0);
         this.mFrom = from;
         this.mTo = to;
-        this.mResources = context.getResources();
         this.mTheme = context.getTheme();
         this.mImgGetter = ImageGetterHelper.GlyphGetter(context);
     }
@@ -98,12 +99,10 @@ public class ResultListAdapter extends SimpleCursorAdapter {
     public void bindView(@NotNull View view, Context context, @NotNull Cursor cursor) {
 
         boolean hideCost = true;
-        boolean hideSet = true;
         boolean hideType = true;
         boolean hideAbility = true;
         boolean hidePT = true;
         boolean hideLoyalty = true;
-        boolean hideRarity = true;
 
         /* make sure these elements are showing (views get recycled) */
         view.findViewById(R.id.cardp).setVisibility(View.VISIBLE);
@@ -113,7 +112,7 @@ public class ResultListAdapter extends SimpleCursorAdapter {
         /* Iterate through the mFrom, find the appropriate view in mTo */
         for (int i = 0; i < mFrom.length; i++) {
 
-            TextView textField = (TextView) view.findViewById(mTo[i]);
+            TextView textField = view.findViewById(mTo[i]);
 
             switch (mFrom[i]) {
                 case CardDbAdapter.KEY_NAME: {
@@ -131,7 +130,6 @@ public class ResultListAdapter extends SimpleCursorAdapter {
                 case CardDbAdapter.KEY_SET: {
                     char rarity = (char) cursor.getInt(cursor.getColumnIndex(CardDbAdapter.KEY_RARITY));
                     String name = cursor.getString(cursor.getColumnIndex(mFrom[i]));
-                    hideSet = false;
                     textField.setText(name);
                     switch (rarity) {
                         case 'c':
@@ -155,12 +153,15 @@ public class ResultListAdapter extends SimpleCursorAdapter {
                             textField.setTextColor(ContextCompat.getColor(context, getResourceIdFromAttr(R.attr.color_timeshifted)));
                             break;
                     }
+
+                    if (PreferenceAdapter.getSetPref(context)) {
+                        ExpansionImageHelper.loadExpansionImage(context, name, rarity, view.findViewById(R.id.cardsetimage), view.findViewById(R.id.cardset), ExpansionImageHelper.ExpansionImageSize.LARGE);
+                    }
                     break;
                 }
                 case CardDbAdapter.KEY_RARITY: {
                     char rarity = (char) cursor.getInt(cursor.getColumnIndex(CardDbAdapter.KEY_RARITY));
-                    textField.setText("(" + rarity + ")");
-                    hideRarity = false;
+                    textField.setText(String.format(Locale.getDefault(), "(%c)", rarity));
                     break;
                 }
                 case CardDbAdapter.KEY_SUPERTYPE: {
@@ -176,73 +177,36 @@ public class ResultListAdapter extends SimpleCursorAdapter {
                     textField.setText(csq);
                     break;
                 }
-                case CardDbAdapter.KEY_POWER:
+                case CardDbAdapter.KEY_POWER: {
                     float p = cursor.getFloat(cursor.getColumnIndex(mFrom[i]));
+                    boolean shouldShowSign =
+                            cursor.getString(cursor.getColumnIndex(CardDbAdapter.KEY_SET)).equals("UST") &&
+                                    cursor.getString(cursor.getColumnIndex(CardDbAdapter.KEY_ABILITY)).contains("Augment {");
                     if (p != CardDbAdapter.NO_ONE_CARES) {
-                        String pow;
                         hidePT = false;
-                        if (p == CardDbAdapter.STAR)
-                            pow = "*";
-                        else if (p == CardDbAdapter.ONE_PLUS_STAR)
-                            pow = "1+*";
-                        else if (p == CardDbAdapter.TWO_PLUS_STAR)
-                            pow = "2+*";
-                        else if (p == CardDbAdapter.SEVEN_MINUS_STAR)
-                            pow = "7-*";
-                        else if (p == CardDbAdapter.STAR_SQUARED)
-                            pow = "*^2";
-                        else if (p == CardDbAdapter.X)
-                            pow = "X";
-                        else {
-                            if (p == (int) p) {
-                                pow = Integer.valueOf((int) p).toString();
-                            } else {
-                                pow = Float.valueOf(p).toString();
-                            }
-                        }
-                        textField.setText(pow);
+                        textField.setText(CardDbAdapter.getPrintedPTL(p, shouldShowSign));
                     }
                     break;
-                case CardDbAdapter.KEY_TOUGHNESS:
+                }
+                case CardDbAdapter.KEY_TOUGHNESS: {
                     float t = cursor.getFloat(cursor.getColumnIndex(mFrom[i]));
+                    boolean shouldShowSign =
+                            cursor.getString(cursor.getColumnIndex(CardDbAdapter.KEY_SET)).equals("UST") &&
+                                    cursor.getString(cursor.getColumnIndex(CardDbAdapter.KEY_ABILITY)).contains("Augment {");
                     if (t != CardDbAdapter.NO_ONE_CARES) {
                         hidePT = false;
-                        String tou;
-                        if (t == CardDbAdapter.STAR)
-                            tou = "*";
-                        else if (t == CardDbAdapter.ONE_PLUS_STAR)
-                            tou = "1+*";
-                        else if (t == CardDbAdapter.TWO_PLUS_STAR)
-                            tou = "2+*";
-                        else if (t == CardDbAdapter.SEVEN_MINUS_STAR)
-                            tou = "7-*";
-                        else if (t == CardDbAdapter.STAR_SQUARED)
-                            tou = "*^2";
-                        else if (t == CardDbAdapter.X)
-                            tou = "X";
-                        else {
-                            if (t == (int) t) {
-                                tou = Integer.valueOf((int) t).toString();
-                            } else {
-                                tou = Float.valueOf(t).toString();
-                            }
-                        }
-                        textField.setText(tou);
+                        textField.setText(CardDbAdapter.getPrintedPTL(t, shouldShowSign));
                     }
                     break;
-                case CardDbAdapter.KEY_LOYALTY:
+                }
+                case CardDbAdapter.KEY_LOYALTY: {
                     float l = cursor.getFloat(cursor.getColumnIndex(mFrom[i]));
                     if (l != CardDbAdapter.NO_ONE_CARES) {
                         hideLoyalty = false;
-                        if (l == CardDbAdapter.X) {
-                            ((TextView) textField.findViewById(R.id.cardt)).setText("X");
-                        } else if (l == (int) l) {
-                            ((TextView) textField.findViewById(R.id.cardt)).setText(Integer.toString((int) l));
-                        } else {
-                            ((TextView) textField.findViewById(R.id.cardt)).setText(Float.toString(l));
-                        }
+                        ((TextView) textField.findViewById(R.id.cardt)).setText(CardDbAdapter.getPrintedPTL(l, false));
                     }
                     break;
+                }
             }
         }
 
@@ -250,8 +214,12 @@ public class ResultListAdapter extends SimpleCursorAdapter {
         if (hideCost) {
             view.findViewById(R.id.cardcost).setVisibility(View.GONE);
         }
-        if (hideSet) {
-            view.findViewById(R.id.cardset).setVisibility(View.GONE);
+        if (PreferenceAdapter.getSetPref(context)) {
+            view.findViewById(R.id.cardsetcombo).setVisibility(View.VISIBLE);
+            view.findViewById(R.id.rarity).setVisibility(View.VISIBLE);
+        } else {
+            view.findViewById(R.id.cardsetcombo).setVisibility(View.GONE);
+            view.findViewById(R.id.rarity).setVisibility(View.GONE);
         }
         if (hideType) {
             view.findViewById(R.id.cardtype).setVisibility(View.GONE);
@@ -267,9 +235,6 @@ public class ResultListAdapter extends SimpleCursorAdapter {
             view.findViewById(R.id.cardslash).setVisibility(View.GONE);
             view.findViewById(R.id.cardt).setVisibility(View.GONE);
         }
-        if (hideRarity) {
-            view.findViewById(R.id.rarity).setVisibility(View.GONE);
-        }
     }
 
     /**
@@ -280,7 +245,6 @@ public class ResultListAdapter extends SimpleCursorAdapter {
      */
     private int getResourceIdFromAttr(int attr) {
         TypedArray ta = mTheme.obtainStyledAttributes(new int[]{attr});
-        assert ta != null;
         int resId = ta.getResourceId(0, 0);
         ta.recycle();
         return resId;

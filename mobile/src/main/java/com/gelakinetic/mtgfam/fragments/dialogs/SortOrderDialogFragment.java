@@ -1,17 +1,37 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.fragments.dialogs;
 
+import android.annotation.SuppressLint;
 import android.app.Dialog;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.v7.widget.LinearLayoutManager;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.CheckBox;
-import android.widget.CompoundButton;
 import android.widget.TextView;
 
-import com.afollestad.materialdialogs.DialogAction;
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
 import com.afollestad.materialdialogs.MaterialDialog;
 import com.gelakinetic.mtgfam.R;
 import com.gelakinetic.mtgfam.helpers.database.CardDbAdapter;
@@ -20,8 +40,10 @@ import com.woxthebox.draglistview.DragListView;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Class that creates dialogs for ResultListFragment
@@ -29,27 +51,37 @@ import java.util.List;
 public class SortOrderDialogFragment extends FamiliarDialogFragment {
 
     public static final String SQL_ASC = "asc";
-    private static final String SQL_DESC = "desc";
+    public static final String SQL_DESC = "desc";
     public static final String SAVED_SORT_ORDER = "saved_sort_order";
     public static final String KEY_PRICE = "key_price";
+    public static final String KEY_ORDER = "key_order";
 
     @NotNull
     @Override
     public Dialog onCreateDialog(Bundle savedInstanceState) {
-        super.onCreateDialog(savedInstanceState);
+        if (!canCreateDialog()) {
+            setShowsDialog(false);
+            return DontShowDialog();
+        }
 
         setShowsDialog(true);
 
         /* Inflate the view */
-        View view = getFamiliarFragment().getActivity().getLayoutInflater().inflate(R.layout.sort_dialog_frag, null, false);
+        @SuppressLint("InflateParams") View view = Objects.requireNonNull(getActivity()).getLayoutInflater().inflate(R.layout.sort_dialog_frag, null, false);
         assert view != null;
 
         /* Create an arraylist of all the sorting options */
         final ArrayList<SortOption> options = new ArrayList<>(6);
-        String searchSortOrder = getArguments().getString(SAVED_SORT_ORDER);
+        String searchSortOrder = Objects.requireNonNull(getArguments()).getString(SAVED_SORT_ORDER);
+
         int idx = 0;
 
         if (searchSortOrder != null) {
+            boolean orderAdded = false;
+            boolean priceAdded = false;
+            boolean rarityAdded = false;
+            boolean setAdded = false;
+            boolean colorIdentityAdded = false;
             for (String option : searchSortOrder.split(",")) {
                 String key = option.split(" ")[0];
                 boolean ascending = option.split(" ")[1].equalsIgnoreCase(SQL_ASC);
@@ -82,49 +114,88 @@ public class SortOrderDialogFragment extends FamiliarDialogFragment {
                     }
                     case CardDbAdapter.KEY_SET: {
                         name = getResources().getString(R.string.search_set);
+                        setAdded = true;
                         break;
                     }
                     case KEY_PRICE: {
                         name = getResources().getString(R.string.wishlist_type_price);
+                        priceAdded = true;
+                        break;
+                    }
+                    case KEY_ORDER: {
+                        name = getResources().getString(R.string.wishlist_type_order);
+                        orderAdded = true;
+                        break;
+                    }
+                    case CardDbAdapter.KEY_RARITY: {
+                        name = getResources().getString(R.string.search_rarity);
+                        rarityAdded = true;
+                        break;
+                    }
+                    case CardDbAdapter.KEY_COLOR_IDENTITY: {
+                        name = getResources().getString(R.string.search_color_identity_title);
+                        colorIdentityAdded = true;
+                        break;
                     }
                 }
                 options.add(new SortOption(name, ascending, key, idx++));
             }
+
+            /* Sorting by order was added later, so if it's not in the given string and price is,
+             * which it is for wishlist and trade list, add order too.
+             */
+            if (priceAdded && !orderAdded) {
+                options.add(new SortOption(getResources().getString(R.string.wishlist_type_order),
+                        false, KEY_ORDER, idx++));
+            }
+
+            if (!rarityAdded) {
+                options.add(new SortOption(getResources().getString(R.string.search_rarity),
+                        false, CardDbAdapter.KEY_RARITY, idx++));
+            }
+
+            if (!setAdded) {
+                options.add(new SortOption(getString(R.string.search_set),
+                        false, CardDbAdapter.KEY_SET, idx++));
+            }
+
+            if (!colorIdentityAdded) {
+                options.add(new SortOption(getString(R.string.search_color_identity_title),
+                        false, CardDbAdapter.KEY_COLOR_IDENTITY, idx++));
+            }
         }
 
         /* Get the sort view and set it up */
-        DragListView sortView = (DragListView) view.findViewById(R.id.sort_list_view);
-        sortView.setLayoutManager(new LinearLayoutManager(getFamiliarFragment().getActivity()));
+        DragListView sortView = view.findViewById(R.id.sort_list_view);
+        sortView.setLayoutManager(new LinearLayoutManager(getActivity()));
         sortItemAdapter adapter = new sortItemAdapter(options);
         sortView.setAdapter(adapter, true);
         sortView.setCanDragHorizontally(false);
 
         /* Create the dialog */
-        MaterialDialog.Builder adb = new MaterialDialog.Builder(getFamiliarFragment().getActivity());
+        MaterialDialog.Builder adb = new MaterialDialog.Builder(getActivity());
         adb.customView(view, false);
         adb.title(getResources().getString(R.string.wishlist_sort_by));
         adb.negativeText(R.string.dialog_cancel);
-        adb.positiveText(getFamiliarFragment().getActivity().getResources().getString(R.string.dialog_ok));
-        adb.onPositive(new MaterialDialog.SingleButtonCallback() {
-            @Override
-            public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-                /* Reordering the entries reorders the pairs */
-                String orderByStr = "";
-                boolean first = true;
-                for (SortOption p : options) {
-                    if (!first) {
-                        orderByStr += ",";
-                    }
-                    orderByStr += (p.mDatabaseKey);
-                    if (p.mAscending) {
-                        orderByStr += " " + SQL_ASC;
-                    } else {
-                        orderByStr += " " + SQL_DESC;
-                    }
-                    first = false;
+        adb.positiveText(getActivity().getResources().getString(R.string.dialog_ok));
+        adb.onPositive((dialog, which) -> {
+            /* Reordering the entries reorders the pairs */
+            StringBuilder orderByStr = new StringBuilder();
+            boolean first = true;
+            for (SortOption p : options) {
+                if (!first) {
+                    orderByStr.append(",");
                 }
-                getFamiliarFragment().receiveSortOrder(orderByStr);
-                dismiss();
+                orderByStr.append(p.mDatabaseKey);
+                if (p.mAscending) {
+                    orderByStr.append(" ").append(SQL_ASC);
+                } else {
+                    orderByStr.append(" ").append(SQL_DESC);
+                }
+                first = false;
+            }
+            if (null != getParentFamiliarFragment()) {
+                getParentFamiliarFragment().receiveSortOrder(orderByStr.toString());
             }
         });
 
@@ -152,8 +223,9 @@ public class SortOrderDialogFragment extends FamiliarDialogFragment {
          * @param viewType Unused
          * @return The newly inflated sortItemViewHolder
          */
+        @NonNull
         @Override
-        public sortItemViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+        public sortItemViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             /* This is where the individual views get inflated */
             View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.sort_list_item, parent, false);
             return new sortItemViewHolder(view);
@@ -167,15 +239,15 @@ public class SortOrderDialogFragment extends FamiliarDialogFragment {
          * @param position The item's position
          */
         @Override
-        public void onBindViewHolder(final sortItemViewHolder holder, int position) {
+        public void onBindViewHolder(@NonNull final sortItemViewHolder holder, int position) {
             /* Fill the view with data */
             super.onBindViewHolder(holder, position);
             holder.mText.setText(mItemList.get(position).mName);
             holder.mCheckbox.setChecked(mItemList.get(position).mAscending);
-            holder.mCheckbox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-                @Override
-                public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
-                    mItemList.get(holder.getAdapterPosition()).mAscending = b;
+            holder.mCheckbox.setOnCheckedChangeListener((compoundButton, b) -> {
+                int position1 = holder.getAdapterPosition();
+                if (RecyclerView.NO_POSITION != position1) {
+                    mItemList.get(position1).mAscending = b;
                 }
             });
             holder.itemView.setTag(mItemList.get(position));
@@ -189,7 +261,7 @@ public class SortOrderDialogFragment extends FamiliarDialogFragment {
          * @return This position's ID
          */
         @Override
-        public long getItemId(int position) {
+        public long getUniqueItemId(int position) {
             return mItemList.get(position).mId;
         }
 
@@ -208,16 +280,16 @@ public class SortOrderDialogFragment extends FamiliarDialogFragment {
              */
             sortItemViewHolder(final View itemView) {
                 super(itemView, R.id.sort_list_handle, false);
-                mText = (TextView) itemView.findViewById(R.id.sort_list_text);
-                mCheckbox = (CheckBox) itemView.findViewById(R.id.asc_desc_checkbox);
+                mText = itemView.findViewById(R.id.sort_list_text);
+                mCheckbox = itemView.findViewById(R.id.asc_desc_checkbox);
             }
 
         }
     }
 
-    public static class SortOption {
+    public static class SortOption implements Serializable {
         final String mName;
-        boolean mAscending = true;
+        boolean mAscending;
         final String mDatabaseKey;
         final int mId;
 

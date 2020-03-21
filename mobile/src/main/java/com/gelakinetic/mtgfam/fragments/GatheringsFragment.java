@@ -1,18 +1,18 @@
-/**
+/*
  * Copyright 2012 Jonathan Bettger
- * <p/>
+ *
  * This file is part of MTG Familiar.
- * <p/>
+ *
  * MTG Familiar is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * <p/>
+ *
  * MTG Familiar is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * <p/>
+ *
  * You should have received a copy of the GNU General Public License
  * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -30,16 +30,19 @@ import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+
 import com.gelakinetic.mtgfam.FamiliarActivity;
 import com.gelakinetic.mtgfam.R;
 import com.gelakinetic.mtgfam.fragments.dialogs.FamiliarDialogFragment;
 import com.gelakinetic.mtgfam.fragments.dialogs.GatheringsDialogFragment;
-import com.gelakinetic.mtgfam.helpers.ToastWrapper;
+import com.gelakinetic.mtgfam.helpers.SnackbarWrapper;
 import com.gelakinetic.mtgfam.helpers.gatherings.Gathering;
 import com.gelakinetic.mtgfam.helpers.gatherings.GatheringsIO;
 import com.gelakinetic.mtgfam.helpers.gatherings.GatheringsPlayerData;
 
 import java.util.ArrayList;
+import java.util.Objects;
 
 /**
  * This fragment handles the creation, loading, and saving of Gatherings (default sets of players, lives, and view modes
@@ -66,7 +69,7 @@ public class GatheringsFragment extends FamiliarFragment {
      * @param outState Bundle in which to place the saved gathering.
      */
     @Override
-    public void onSaveInstanceState(Bundle outState) {
+    public void onSaveInstanceState(@NonNull Bundle outState) {
         Gathering savedGathering = new Gathering();
 
         savedGathering.mDisplayMode = mDisplayModeSpinner.getSelectedItemPosition();
@@ -76,13 +79,13 @@ public class GatheringsFragment extends FamiliarFragment {
             View player = mLinearLayout.getChildAt(idx);
             assert player != null;
 
-            EditText nameField = ((EditText) player.findViewById(R.id.custom_name));
+            EditText nameField = player.findViewById(R.id.custom_name);
             assert nameField.getText() != null;
             String name = nameField.getText().toString().trim();
 
             int startingLife;
             try {
-                EditText startingLifeField = ((EditText) player.findViewById(R.id.starting_life));
+                EditText startingLifeField = player.findViewById(R.id.starting_life);
                 assert startingLifeField.getText() != null;
                 startingLife = Integer.parseInt(startingLifeField.getText().toString().trim());
             } catch (NumberFormatException e) {
@@ -111,14 +114,14 @@ public class GatheringsFragment extends FamiliarFragment {
      * @return The inflated view
      */
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         mLargestPlayerNumber = 0;
 
         /* Inflate a view */
         View myFragmentView = inflater.inflate(R.layout.gathering_frag, container, false);
         assert myFragmentView != null;
-        mLinearLayout = (LinearLayout) myFragmentView.findViewById(R.id.gathering_player_list);
-        mDisplayModeSpinner = (Spinner) myFragmentView.findViewById(R.id.gathering_display_mode);
+        mLinearLayout = myFragmentView.findViewById(R.id.gathering_player_list);
+        mDisplayModeSpinner = myFragmentView.findViewById(R.id.gathering_display_mode);
 
         return myFragmentView;
     }
@@ -144,12 +147,15 @@ public class GatheringsFragment extends FamiliarFragment {
             Gathering gathering = (Gathering) savedInstanceState.getSerializable(SAVED_GATHERING_KEY);
 
             assert gathering != null;
+            if (gathering.mDisplayMode >= mDisplayModeSpinner.getAdapter().getCount()) {
+                gathering.mDisplayMode = 0;
+            }
             mDisplayModeSpinner.setSelection(gathering.mDisplayMode);
             ArrayList<GatheringsPlayerData> players = gathering.mPlayerList;
             for (GatheringsPlayerData player : players) {
                 AddPlayerRow(player);
             }
-            getActivity().supportInvalidateOptionsMenu();
+            Objects.requireNonNull(getActivity()).invalidateOptionsMenu();
             mCurrentGatheringName = savedInstanceState.getString(SAVED_NAME_KEY);
         }
     }
@@ -238,7 +244,7 @@ public class GatheringsFragment extends FamiliarFragment {
      */
     public void SaveGathering(String _gatheringName) {
         if (_gatheringName.length() <= 0) {
-            ToastWrapper.makeText(getActivity(), R.string.gathering_toast_no_name, ToastWrapper.LENGTH_LONG).show();
+            SnackbarWrapper.makeAndShowText(getActivity(), R.string.gathering_toast_no_name, SnackbarWrapper.LENGTH_LONG);
             return;
         }
 
@@ -250,11 +256,11 @@ public class GatheringsFragment extends FamiliarFragment {
             View player = mLinearLayout.getChildAt(idx);
             assert player != null;
 
-            EditText customName = (EditText) player.findViewById(R.id.custom_name);
+            EditText customName = player.findViewById(R.id.custom_name);
             assert customName.getText() != null;
             String name = customName.getText().toString().trim();
 
-            EditText startingLife = (EditText) player.findViewById(R.id.starting_life);
+            EditText startingLife = player.findViewById(R.id.starting_life);
             assert startingLife.getText() != null;
             int life = Integer.parseInt(startingLife.getText().toString());
 
@@ -262,8 +268,8 @@ public class GatheringsFragment extends FamiliarFragment {
         }
 
         GatheringsIO.writeGatheringXML(players, _gatheringName, mDisplayModeSpinner.getSelectedItemPosition(),
-                getActivity().getFilesDir());
-        getActivity().supportInvalidateOptionsMenu();
+                Objects.requireNonNull(getActivity()).getFilesDir());
+        getActivity().invalidateOptionsMenu();
     }
 
     /**
@@ -278,14 +284,14 @@ public class GatheringsFragment extends FamiliarFragment {
             View player = mLinearLayout.getChildAt(idx);
 
             assert player != null;
-            EditText customName = (EditText) player.findViewById(R.id.custom_name);
+            EditText customName = player.findViewById(R.id.custom_name);
             assert customName.getText() != null;
             String name = customName.getText().toString().trim();
             if (name.trim().length() == 0) {
                 return true;
             }
 
-            EditText startingLife = (EditText) player.findViewById(R.id.starting_life);
+            EditText startingLife = player.findViewById(R.id.starting_life);
 
             assert startingLife.getText() != null;
             if (startingLife.getText().toString().trim().length() == 0) {
@@ -307,7 +313,7 @@ public class GatheringsFragment extends FamiliarFragment {
             _player.mName = getString(R.string.life_counter_default_name) + " " + mLargestPlayerNumber;
         } else {
             try {
-                String nameParts[] = _player.mName.split(" ");
+                String[] nameParts = _player.mName.split(" ");
                 int number = Integer.parseInt(nameParts[nameParts.length - 1]);
                 if (number > mLargestPlayerNumber) {
                     mLargestPlayerNumber = number;
@@ -316,14 +322,14 @@ public class GatheringsFragment extends FamiliarFragment {
                 /* eat it */
             }
         }
-        View newView = getLayoutInflater(null).inflate(R.layout.gathering_create_player_row, null, false);
+        View newView = getLayoutInflater().inflate(R.layout.gathering_create_player_row, mLinearLayout, false);
         assert newView != null;
 
         ((TextView) newView.findViewById(R.id.custom_name)).setText(_player.mName);
         ((TextView) newView.findViewById(R.id.starting_life)).setText(String.valueOf(_player.mStartingLife));
 
         mLinearLayout.addView(newView);
-        getActivity().supportInvalidateOptionsMenu();
+        Objects.requireNonNull(getActivity()).invalidateOptionsMenu();
     }
 
     /**
@@ -354,7 +360,7 @@ public class GatheringsFragment extends FamiliarFragment {
             removePlayer.setVisible(true);
         }
 
-        if (GatheringsIO.getNumberOfGatherings(getActivity().getFilesDir()) <= 0 ||
+        if (GatheringsIO.getNumberOfGatherings(Objects.requireNonNull(getActivity()).getFilesDir()) <= 0 ||
                 getFamiliarActivity() == null || !getFamiliarActivity().mIsMenuVisible) {
             deleteGathering.setVisible(false);
             loadGathering.setVisible(false);

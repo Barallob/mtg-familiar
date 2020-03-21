@@ -1,8 +1,28 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.fragments;
 
 import android.database.Cursor;
+import android.database.CursorIndexOutOfBoundsException;
 import android.database.sqlite.SQLiteDatabase;
-import android.database.sqlite.SQLiteDatabaseCorruptException;
+import android.database.sqlite.SQLiteException;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -12,15 +32,20 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Spinner;
 
+import androidx.annotation.NonNull;
+
 import com.gelakinetic.mtgfam.FamiliarActivity;
 import com.gelakinetic.mtgfam.R;
 import com.gelakinetic.mtgfam.fragments.dialogs.FamiliarDialogFragment;
 import com.gelakinetic.mtgfam.fragments.dialogs.MoJhoStoDialogFragment;
+import com.gelakinetic.mtgfam.helpers.PreferenceAdapter;
 import com.gelakinetic.mtgfam.helpers.SearchCriteria;
 import com.gelakinetic.mtgfam.helpers.database.CardDbAdapter;
 import com.gelakinetic.mtgfam.helpers.database.DatabaseManager;
 import com.gelakinetic.mtgfam.helpers.database.FamiliarDbException;
+import com.gelakinetic.mtgfam.helpers.database.FamiliarDbHandle;
 
+import java.util.Collections;
 import java.util.Random;
 
 /**
@@ -55,7 +80,7 @@ public class MoJhoStoFragment extends FamiliarFragment {
      * @return The created view
      */
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 
         mRandom = new Random(System.currentTimeMillis());
 
@@ -64,62 +89,38 @@ public class MoJhoStoFragment extends FamiliarFragment {
         assert myFragmentView != null;
 
         /* Add listeners to the portraits to show the full Vanguards */
-        myFragmentView.findViewById(R.id.imageViewMo).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                showDialog(MoJhoStoDialogFragment.DIALOG_MOMIR);
-            }
-        });
+        myFragmentView.findViewById(R.id.imageViewMo).setOnClickListener(v -> showDialog(MoJhoStoDialogFragment.DIALOG_MOMIR));
 
-        myFragmentView.findViewById(R.id.imageViewSto).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                showDialog(MoJhoStoDialogFragment.DIALOG_STONEHEWER);
-            }
-        });
+        myFragmentView.findViewById(R.id.imageViewSto).setOnClickListener(v -> showDialog(MoJhoStoDialogFragment.DIALOG_STONEHEWER));
 
-        myFragmentView.findViewById(R.id.imageViewJho).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                showDialog(MoJhoStoDialogFragment.DIALOG_JHOIRA);
-            }
-        });
+        myFragmentView.findViewById(R.id.imageViewJho).setOnClickListener(v -> showDialog(MoJhoStoDialogFragment.DIALOG_JHOIRA));
 
         /* Add the listeners to the buttons to display random cards */
-        myFragmentView.findViewById(R.id.momir_button).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                try {
-                    int cmc = Integer.parseInt((String) mMomirCmcChoice.getSelectedItem());
-                    getOneSpell(CREATURE, cmc);
-                } catch (NumberFormatException e) {
-                    /* eat it */
-                }
+        myFragmentView.findViewById(R.id.momir_button).setOnClickListener(v -> {
+            try {
+                int cmc = Integer.parseInt((String) mMomirCmcChoice.getSelectedItem());
+                getOneSpell(CREATURE, cmc);
+            } catch (NumberFormatException e) {
+                /* eat it */
             }
         });
 
-        myFragmentView.findViewById(R.id.stonehewer_button).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                try {
-                    int cmc = Integer.parseInt((String) mStonehewerCmcChoice.getSelectedItem());
-                    getOneSpell(EQUIPMENT, cmc);
-                } catch (NumberFormatException e) {
-                    /* eat it */
-                }
+        myFragmentView.findViewById(R.id.stonehewer_button).setOnClickListener(v -> {
+            try {
+                int cmc = Integer.parseInt((String) mStonehewerCmcChoice.getSelectedItem());
+                getOneSpell(EQUIPMENT, cmc);
+            } catch (NumberFormatException e) {
+                /* eat it */
             }
         });
 
-        myFragmentView.findViewById(R.id.jhorira_instant_button).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                getThreeSpells(INSTANT);
-            }
-        });
+        myFragmentView.findViewById(R.id.jhorira_instant_button).setOnClickListener(v -> getThreeSpells(INSTANT));
 
-        myFragmentView.findViewById(R.id.jhorira_sorcery_button).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                getThreeSpells(SORCERY);
-            }
-        });
+        myFragmentView.findViewById(R.id.jhorira_sorcery_button).setOnClickListener(v -> getThreeSpells(SORCERY));
 
         /* Save the spinners to pull out the CMCs later */
-        mMomirCmcChoice = (Spinner) myFragmentView.findViewById(R.id.momir_spinner);
-        mStonehewerCmcChoice = (Spinner) myFragmentView.findViewById(R.id.stonehewer_spinner);
+        mMomirCmcChoice = myFragmentView.findViewById(R.id.momir_spinner);
+        mStonehewerCmcChoice = myFragmentView.findViewById(R.id.stonehewer_spinner);
 
         /* Return the view */
         return myFragmentView;
@@ -132,9 +133,9 @@ public class MoJhoStoFragment extends FamiliarFragment {
     @Override
     public void onResume() {
         super.onResume();
-        if (getFamiliarActivity().mPreferenceAdapter.getMojhostoFirstTime()) {
+        if (PreferenceAdapter.getMojhostoFirstTime(getContext())) {
             showDialog(MoJhoStoDialogFragment.DIALOG_RULES);
-            getFamiliarActivity().mPreferenceAdapter.setMojhostoFirstTime();
+            PreferenceAdapter.setMojhostoFirstTime(getContext());
         }
     }
 
@@ -198,28 +199,28 @@ public class MoJhoStoFragment extends FamiliarFragment {
      * @param cmc  The converted mana cost of the card to randomly fetch
      */
     private void getOneSpell(String type, int cmc) {
-        SQLiteDatabase database = DatabaseManager.getInstance(getActivity(), false).openDatabase(false);
+        Cursor permanents = null;
+        FamiliarDbHandle handle = new FamiliarDbHandle();
         try {
-            String logic = "=";
+            SearchCriteria criteria = new SearchCriteria();
+            SQLiteDatabase database = DatabaseManager.openDatabase(getActivity(), false, handle);
             if (type.equals(EQUIPMENT)) {
-                logic = "<=";
-                type = " - " + EQUIPMENT;
+                criteria.cmcLogic = "<=";
+                criteria.subTypes = Collections.singletonList(type);
+            } else {
+                criteria.cmcLogic = "=";
+                criteria.superTypes = Collections.singletonList(type);
             }
             String[] returnTypes = new String[]{CardDbAdapter.KEY_ID, CardDbAdapter.KEY_NAME};
-            SearchCriteria criteria = new SearchCriteria();
-            criteria.type = type;
             criteria.cmc = cmc;
-            criteria.cmcLogic = logic;
             criteria.moJhoStoFilter = true;
-            Cursor permanents = CardDbAdapter.Search(criteria, false, returnTypes, true, null, database);
+            permanents = CardDbAdapter.Search(criteria, false, returnTypes, true, null, database);
 
             if (permanents == null) {
                 throw new FamiliarDbException(new Exception("permanents failure"));
             }
 
             if (permanents.getCount() == 0) {
-                permanents.close();
-                DatabaseManager.getInstance(getActivity(), false).closeDatabase(false);
                 return;
             }
             int pos = mRandom.nextInt(permanents.getCount());
@@ -231,12 +232,14 @@ public class MoJhoStoFragment extends FamiliarFragment {
             args.putInt(CardViewPagerFragment.STARTING_CARD_POSITION, 0);
             CardViewPagerFragment cvpFrag = new CardViewPagerFragment();
             startNewFragment(cvpFrag, args);
-
-            permanents.close();
-        } catch (FamiliarDbException | SQLiteDatabaseCorruptException e) {
+        } catch (SQLiteException | FamiliarDbException | CursorIndexOutOfBoundsException e) {
             handleFamiliarDbException(true);
+        } finally {
+            if (null != permanents) {
+                permanents.close();
+            }
+            DatabaseManager.closeDatabase(getActivity(), handle);
         }
-        DatabaseManager.getInstance(getActivity(), false).closeDatabase(false);
     }
 
     /**
@@ -246,18 +249,20 @@ public class MoJhoStoFragment extends FamiliarFragment {
      * @param type The supertype of the card to randomly fetch
      */
     private void getThreeSpells(String type) {
-        SQLiteDatabase database = DatabaseManager.getInstance(getActivity(), false).openDatabase(false);
+        Cursor spells = null;
+        FamiliarDbHandle handle = new FamiliarDbHandle();
         try {
+            SQLiteDatabase database = DatabaseManager.openDatabase(getActivity(), false, handle);
             String[] returnTypes = new String[]{CardDbAdapter.KEY_ID, CardDbAdapter.KEY_NAME};
             SearchCriteria criteria = new SearchCriteria();
-            criteria.type = type;
-            Cursor spells = CardDbAdapter.Search(criteria, false, returnTypes, true, null, database);
+            criteria.superTypes = Collections.singletonList(type);
+            spells = CardDbAdapter.Search(criteria, false, returnTypes, true, null, database);
 
             if (spells == null) {
                 throw new FamiliarDbException(new Exception("three spell failure"));
             }
             /* Get 3 random, distinct numbers */
-            int pos[] = new int[3];
+            int[] pos = new int[3];
             pos[0] = mRandom.nextInt(spells.getCount());
             pos[1] = mRandom.nextInt(spells.getCount());
             while (pos[0] == pos[1]) {
@@ -280,11 +285,13 @@ public class MoJhoStoFragment extends FamiliarFragment {
             /* add a fragment */
             ResultListFragment rlFrag = new ResultListFragment();
             startNewFragment(rlFrag, args);
-
-            spells.close();
-        } catch (FamiliarDbException | SQLiteDatabaseCorruptException e) {
+        } catch (SQLiteException | FamiliarDbException | CursorIndexOutOfBoundsException e) {
             handleFamiliarDbException(true);
+        } finally {
+            if (null != spells) {
+                spells.close();
+            }
+            DatabaseManager.closeDatabase(getActivity(), handle);
         }
-        DatabaseManager.getInstance(getActivity(), false).closeDatabase(false);
     }
 }

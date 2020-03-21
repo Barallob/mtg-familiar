@@ -1,17 +1,39 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.fragments;
 
 import android.os.Bundle;
 import android.os.Parcelable;
-import android.support.annotation.NonNull;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
-import android.support.v4.app.FragmentPagerAdapter;
-import android.support.v4.view.ViewPager;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.annotation.NonNull;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentPagerAdapter;
+import androidx.viewpager.widget.ViewPager;
+
 import com.gelakinetic.mtgfam.R;
+
+import java.util.Objects;
 
 /**
  * This class will nest the CardViewFragments found by a search in a ViewPager
@@ -27,7 +49,7 @@ public class CardViewPagerFragment extends FamiliarFragment {
      * @return The currently viewed CardViewFragment in the CardViewPagerFragment
      */
     public CardViewFragment getCurrentFragment() {
-        return ((CardViewPagerAdapter) mViewPager.getAdapter()).getCurrentFragment();
+        return ((CardViewPagerAdapter) Objects.requireNonNull(mViewPager.getAdapter())).getCurrentFragment();
     }
 
     /**
@@ -41,6 +63,19 @@ public class CardViewPagerFragment extends FamiliarFragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         this.setHasOptionsMenu(false);
+
+        /* add a fragment */
+//        new Handler().postDelayed(new Runnable() {
+//            @Override
+//            public void run() {
+//                Random rand = new Random(System.currentTimeMillis());
+//                Bundle args = new Bundle();
+//                args.putLongArray(CardViewPagerFragment.CARD_ID_ARRAY, new long[]{1 + rand.nextInt(1000)});
+//                args.putInt(CardViewPagerFragment.STARTING_CARD_POSITION, 0);
+//                CardViewPagerFragment cvpFrag = new CardViewPagerFragment();
+//                startNewFragment(cvpFrag, args);
+//            }
+//        }, 3000);
     }
 
     /**
@@ -55,12 +90,12 @@ public class CardViewPagerFragment extends FamiliarFragment {
      * @return The inflated view
      */
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 
         /* Instantiate a ViewPager and a PagerAdapter. */
         View v = inflater.inflate(R.layout.card_view_pager, container, false);
         assert v != null; /* Because Android Studio */
-        mViewPager = (ViewPager) v.findViewById(R.id.pager);
+        mViewPager = v.findViewById(R.id.pager);
 
         /* Retain the instance */
         if (getParentFragment() == null) {
@@ -68,7 +103,7 @@ public class CardViewPagerFragment extends FamiliarFragment {
         }
 
         Bundle args = getArguments();
-        long cardIds[] = args.getLongArray(CARD_ID_ARRAY);
+        long[] cardIds = Objects.requireNonNull(args).getLongArray(CARD_ID_ARRAY);
         int currentPosition = args.getInt(STARTING_CARD_POSITION);
 
         CardViewPagerAdapter pagerAdapter = new CardViewPagerAdapter(getChildFragmentManager(), cardIds);
@@ -90,7 +125,15 @@ public class CardViewPagerFragment extends FamiliarFragment {
      */
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        ((CardViewPagerAdapter) mViewPager.getAdapter()).getCurrentFragment().onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (null != mViewPager) {
+            CardViewPagerAdapter adapter = (CardViewPagerAdapter) mViewPager.getAdapter();
+            if (null != adapter) {
+                CardViewFragment frag = adapter.getCurrentFragment();
+                if (null != frag) {
+                    frag.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                }
+            }
+        }
     }
 
     /**
@@ -106,7 +149,7 @@ public class CardViewPagerFragment extends FamiliarFragment {
          * @param fm      The FragmentManager which handles the fragments
          * @param cardIds The array of card IDs to make fragments with
          */
-        public CardViewPagerAdapter(FragmentManager fm, long[] cardIds) {
+        CardViewPagerAdapter(FragmentManager fm, long[] cardIds) {
             super(fm);
             this.mCardIds = cardIds;
         }
@@ -150,7 +193,7 @@ public class CardViewPagerFragment extends FamiliarFragment {
         /**
          * @return Returns the current fragment being displayed by this adapter
          */
-        public CardViewFragment getCurrentFragment() {
+        CardViewFragment getCurrentFragment() {
             return mCurrentFragment;
         }
 
@@ -164,7 +207,7 @@ public class CardViewPagerFragment extends FamiliarFragment {
          * @param object    The same object that was returned by instantiateItem(View, int).
          */
         @Override
-        public void setPrimaryItem(ViewGroup container, int position, Object object) {
+        public void setPrimaryItem(@NonNull ViewGroup container, int position, @NonNull Object object) {
             if (getCurrentFragment() != object) {
                 mCurrentFragment = ((CardViewFragment) object);
             }
@@ -176,7 +219,7 @@ public class CardViewPagerFragment extends FamiliarFragment {
      * Just to be fancy, lets spice up the transformation
      * http://developer.android.com/training/animation/screen-slide.html
      */
-    public class DepthPageTransformer implements ViewPager.PageTransformer {
+    class DepthPageTransformer implements ViewPager.PageTransformer {
         private final float MIN_SCALE = 0.75f;
 
         /**
@@ -185,7 +228,7 @@ public class CardViewPagerFragment extends FamiliarFragment {
          * @param view     The view being transformed
          * @param position Where the view currently is
          */
-        public void transformPage(View view, float position) {
+        public void transformPage(@NonNull View view, float position) {
             int pageWidth = view.getWidth();
 
             if (position < -1) { /* [-Infinity,-1)

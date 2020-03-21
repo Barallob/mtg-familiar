@@ -1,14 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-     Copyright 2011 Adam Feinstein and April King. This file is part of MTG 
-	Familiar. MTG Familiar is free software: you can redistribute it and/or modify 
-	it under the terms of the GNU General Public License as published by the 
-	Free Software Foundation, either version 3 of the License, or (at your option) 
-	any later version. MTG Familiar is distributed in the hope that it will be 
-	useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY 
-	or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for 
-	more details. You should have received a copy of the GNU General Public License 
-	along with MTG Familiar. If not, see <http://www.gnu.org/licenses/>.
--->
+  ~ Copyright 2017 Adam Feinstein and April King
+  ~
+  ~ This file is part of MTG Familiar.
+  ~
+  ~ MTG Familiar is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ MTG Familiar is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU General Public License
+  ~ along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+  -->
 
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -23,7 +30,7 @@
                 android:entryValues="@array/default_fragment_array_entries"
                 android:key="@string/key_defaultFragment"
                 android:summary="@string/pref_default_fragment_mode_summary"
-                android:title="@string/pref_default_fragment_mode_title" />
+                android:title="@string/pref_cat_default_fragment" />
         </PreferenceCategory>
 
         <PreferenceCategory android:title="@string/pref_cat_updates">
@@ -74,12 +81,59 @@
                 android:key="@string/key_theme"
                 android:summary="@string/pref_theme_summary"
                 android:title="@string/pref_theme_title" />
+
+            <ListPreference
+                android:defaultValue="@drawable/glyph_tap"
+                android:dialogTitle="@string/pref_tap_symbol_title"
+                android:entries="@array/pref_tap_symbols"
+                android:entryValues="@array/pref_tap_symbols_drawable"
+                android:key="@string/key_tap_symbol"
+                android:summary="@string/pref_tap_symbol_summary"
+                android:title="@string/pref_tap_symbol_title" />
+
+            <ListPreference
+                android:defaultValue="@drawable/glyph_w"
+                android:dialogTitle="@string/pref_white_symbol_title"
+                android:entries="@array/pref_white_mana_symbols"
+                android:entryValues="@array/pref_white_mana_symbols_drawable"
+                android:key="@string/key_white_symbol"
+                android:summary="@string/pref_white_symbol_summary"
+                android:title="@string/pref_white_symbol_title" />
+
         </PreferenceCategory>
 
+        <PreferenceCategory xmlns:robobunny="http://robobunny.com"
+            android:title="@string/pref_cat_list_general">
+
+            <com.robobunny.preferences.SeekBarPreference
+                android:defaultValue="3"
+                android:key="@string/key_undoTimeout"
+                android:max="10"
+                android:summary="@string/pref_undo_timeout_seconds_summary"
+                android:title="@string/pref_undo_timeout_seconds_title"
+                robobunny:interval="1"
+                robobunny:min="1"
+                robobunny:unitsRight="s" />
+
+        </PreferenceCategory>
     </PreferenceScreen>
 
     <!-- Search and results preferences -->
-    <PreferenceScreen android:title="@string/pref_screen_search">
+    <PreferenceScreen android:title="@string/main_card_search">
+
+        <PreferenceCategory android:title="@string/main_card_search">
+            <CheckBoxPreference
+                android:defaultValue="true"
+                android:key="@string/key_persistSearch"
+                android:summary="@string/pref_persist_search_summary"
+                android:title="@string/pref_persist_search_title" />
+
+            <!--<CheckBoxPreference-->
+            <!--android:defaultValue="false"-->
+            <!--android:key="@string/key_hideOnlineCards"-->
+            <!--android:summary="@string/pref_hide_online_summary"-->
+            <!--android:title="@string/pref_hide_online_title" />-->
+        </PreferenceCategory>
 
         <PreferenceCategory android:title="@string/pref_cat_result_list">
 
@@ -138,13 +192,13 @@
             android:title="@string/pref_cat_card_cache">
 
             <com.robobunny.preferences.SeekBarPreference
-                android:defaultValue="12"
+                android:defaultValue="50"
                 android:key="@string/key_imageCacheSize"
-                android:max="100"
+                android:max="500"
                 android:summary="@string/pref_image_cache_size_summary"
                 android:title="@string/pref_image_cache_size_title"
                 robobunny:interval="1"
-                robobunny:min="1"
+                robobunny:min="50"
                 robobunny:unitsRight="MB" />
 
         </PreferenceCategory>
@@ -152,9 +206,9 @@
     </PreferenceScreen>
 
     <!-- Life counter preferences -->
-    <PreferenceScreen android:title="@string/pref_screen_counter">
+    <PreferenceScreen android:title="@string/main_life_counter">
 
-        <PreferenceCategory android:title="@string/pref_cat_life_counter">
+        <PreferenceCategory android:title="@string/main_life_counter">
 
             <ListPreference
                 android:defaultValue="0"
@@ -204,10 +258,80 @@
 
     </PreferenceScreen>
 
-    <!-- Round timer preferences -->
-    <PreferenceScreen android:title="@string/pref_screen_timer">
+    <!-- Trade preferences -->
+    <PreferenceScreen android:title="@string/main_trade">
 
-        <PreferenceCategory android:title="@string/pref_cat_timer">
+        <PreferenceCategory android:title="@string/pref_cat_trade_window">
+
+            <ListPreference
+                android:defaultValue="3"
+                android:entries="@array/trade_option_entries"
+                android:entryValues="@array/trade_option_values"
+                android:key="@string/key_tradePrice"
+                android:summary="@string/pref_trade_price_summary"
+                android:title="@string/pref_trade_price_title" />
+
+        </PreferenceCategory>
+    </PreferenceScreen>
+
+    <!-- Wishlist preferences -->
+    <PreferenceScreen android:title="@string/main_wishlist">
+        <PreferenceCategory android:title="@string/main_wishlist">
+
+            <CheckBoxPreference
+                android:defaultValue="false"
+                android:key="@string/key_showTotalPriceWishlistPref"
+                android:summary="@string/pref_wishlist_totals_summary"
+                android:title="@string/pref_wishlist_totals_title" />
+
+            <CheckBoxPreference
+                android:defaultValue="true"
+                android:key="@string/key_showIndividualPricesWishlistPref"
+                android:summary="@string/pref_wishlist_prices_summary"
+                android:title="@string/pref_wishlist_prices_title" />
+
+            <CheckBoxPreference
+                android:defaultValue="false"
+                android:key="@string/key_verboseWishlistPref"
+                android:summary="@string/pref_wishlist_details_summary"
+                android:title="@string/pref_wishlist_details_title" />
+
+            <ListPreference
+                android:defaultValue="3"
+                android:entries="@array/trade_option_entries"
+                android:entryValues="@array/trade_option_values"
+                android:key="@string/key_wishlistPrice"
+                android:summary="@string/pref_wishlist_price_summary"
+                android:title="@string/pref_trade_price_title" />
+
+        </PreferenceCategory>
+    </PreferenceScreen>
+
+    <!-- Deck preferences -->
+    <PreferenceScreen android:title="@string/main_decklist">
+        <PreferenceCategory android:title="@string/pref_cat_decklist">
+
+            <CheckBoxPreference
+                android:defaultValue="false"
+                android:key="@string/key_showTotalPriceDecklistPref"
+                android:summary="@string/pref_decklist_totals_summary"
+                android:title="@string/pref_wishlist_totals_title" />
+
+            <ListPreference
+                android:defaultValue="3"
+                android:entries="@array/trade_option_entries"
+                android:entryValues="@array/trade_option_values"
+                android:key="@string/key_deckPrice"
+                android:summary="@string/pref_deck_price_summary"
+                android:title="@string/pref_trade_price_title" />
+
+        </PreferenceCategory>
+    </PreferenceScreen>
+
+    <!-- Round timer preferences -->
+    <PreferenceScreen android:title="@string/main_timer">
+
+        <PreferenceCategory android:title="@string/main_timer">
 
             <RingtonePreference
                 android:key="@string/key_timerSound"
@@ -240,45 +364,6 @@
                 android:defaultValue="false"
                 android:key="@string/key_useSoundInsteadOfTTSPref"
                 android:title="@string/pref_use_sound_instead_of_tts" />
-
-        </PreferenceCategory>
-
-    </PreferenceScreen>
-
-    <!-- Trade and wishlist preferences -->
-    <PreferenceScreen android:title="@string/pref_screen_trade_wishlist">
-
-        <PreferenceCategory android:title="@string/pref_cat_trade_window">
-
-            <ListPreference
-                android:defaultValue="1"
-                android:entries="@array/trade_option_entries"
-                android:entryValues="@array/trade_option_values"
-                android:key="@string/key_tradePrice"
-                android:summary="@string/pref_trade_price_summary"
-                android:title="@string/pref_trade_price_title" />
-
-        </PreferenceCategory>
-
-        <PreferenceCategory android:title="@string/pref_cat_wishlist">
-
-            <CheckBoxPreference
-                android:defaultValue="false"
-                android:key="@string/key_showTotalPriceWishlistPref"
-                android:summary="@string/pref_wishlist_totals_summary"
-                android:title="@string/pref_wishlist_totals_title" />
-
-            <CheckBoxPreference
-                android:defaultValue="true"
-                android:key="@string/key_showIndividualPricesWishlistPref"
-                android:summary="@string/pref_wishlist_prices_summary"
-                android:title="@string/pref_wishlist_prices_title" />
-
-            <CheckBoxPreference
-                android:defaultValue="false"
-                android:key="@string/key_verboseWishlistPref"
-                android:summary="@string/pref_wishlist_details_summary"
-                android:title="@string/pref_wishlist_details_title" />
 
         </PreferenceCategory>
 

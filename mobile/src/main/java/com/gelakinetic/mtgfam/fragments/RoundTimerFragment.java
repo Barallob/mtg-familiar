@@ -1,3 +1,22 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.fragments;
 
 import android.app.AlarmManager;
@@ -9,8 +28,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.support.v4.app.NotificationCompat;
-import android.support.v4.app.NotificationManagerCompat;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -19,23 +36,30 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 
+import androidx.annotation.NonNull;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
+
 import com.codetroopers.betterpickers.hmspicker.HmsPicker;
 import com.gelakinetic.mtgfam.FamiliarActivity;
 import com.gelakinetic.mtgfam.R;
 import com.gelakinetic.mtgfam.fragments.dialogs.RoundTimerDialogFragment;
+import com.gelakinetic.mtgfam.helpers.NotificationHelper;
+import com.gelakinetic.mtgfam.helpers.PreferenceAdapter;
 import com.gelakinetic.mtgfam.helpers.RoundTimerBroadcastReceiver;
 
 import java.util.Calendar;
+import java.util.Objects;
 
 /**
  * This fragment starts and stops the round timer. When it is started, it commits the end time as a shared preference,
  * sets a series of PendingIntents with the AlarmManager, creates a notification, and tells the FamiliarActivity to
  * display the time in the ActionBar.
- * <p/>
+ * <p>
  * Future activities and fragments will determine if the timer is running by checking the shared preference. If it is -1
  * the timer is no longer running. It will automatically be set to -1 when the final PendingIntent fires, or if it has
  * expired and then checked.
- * <p/>
+ * <p>
  * This means that the round timer persists through literally anything, even getting automatically restarted in place
  * after a force close (if the app is opened again). The FamiliarActivity will take care of recreating the notification
  * and PendingIntents.
@@ -67,6 +91,10 @@ public class RoundTimerFragment extends FamiliarFragment {
      */
     public static void setOrCancelAlarms(Context context, long endTime, boolean set) {
         AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+
+        if (null == am) {
+            return;
+        }
 
         PendingIntent AlarmPendingIntent = PendingIntent.getBroadcast(context, TIMER_RING_ALARM, new Intent(context,
                         RoundTimerBroadcastReceiver.class).putExtra(ROUND_TIMER_INTENT, TIMER_RING_ALARM),
@@ -157,7 +185,8 @@ public class RoundTimerFragment extends FamiliarFragment {
         then.add(Calendar.MILLISECOND, (int) (endTime - System.currentTimeMillis()));
         String messageText = String.format(context.getString(R.string.timer_notification_ongoing), then);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context)
+        NotificationHelper.createChannels(context);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, NotificationHelper.NOTIFICATION_CHANNEL_ROUND_TIMER)
                 .setSmallIcon(R.drawable.notification_icon)
                 .setWhen(System.currentTimeMillis())
                 .setContentTitle(context.getString(R.string.main_timer))
@@ -187,57 +216,54 @@ public class RoundTimerFragment extends FamiliarFragment {
      * @return The inflated view
      */
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.round_timer_frag, container, false);
 
         assert v != null;
 
-        mTimePicker = (HmsPicker) v.findViewById(R.id.rt_time_picker);
+        mTimePicker = v.findViewById(R.id.rt_time_picker);
         mTimePicker.setTheme(getResourceIdFromAttr(R.attr.hms_picker_style));
         mTimePicker.setPlusMinusVisibility(View.INVISIBLE);
 
-        mTimerButton = ((Button) v.findViewById(R.id.rt_action_button));
-        mTimerButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                if (getFamiliarActivity().mPreferenceAdapter.getRoundTimerEnd() != -1) {
-                    /* Commit the endTime as -1 */
-                    getFamiliarActivity().mPreferenceAdapter.setRoundTimerEnd(-1);
-                    /* Cancel the alarms */
-                    setOrCancelAlarms(getActivity(), 0, false);
-                    /* Stop the ActionBar timer display*/
-                    getFamiliarActivity().stopUpdatingDisplay();
-                    /* Set button text to start again */
-                    mTimerButton.setText(R.string.timer_start);
-                    /* Cancel the notification */
-                    NotificationManagerCompat.from(getActivity()).cancel(TIMER_NOTIFICATION_ID);
-                } else {
-                    /* Figure out the end time */
-                    int hours = mTimePicker.getHours();
-                    int minutes = mTimePicker.getMinutes();
-                    int seconds = mTimePicker.getSeconds();
+        mTimerButton = v.findViewById(R.id.rt_action_button);
+        mTimerButton.setOnClickListener(view -> {
+            if (PreferenceAdapter.getRoundTimerEnd(getContext()) != -1) {
+                /* Commit the endTime as -1 */
+                PreferenceAdapter.setRoundTimerEnd(getContext(), -1);
+                /* Cancel the alarms */
+                setOrCancelAlarms(Objects.requireNonNull(getActivity()), 0, false);
+                /* Stop the ActionBar timer display*/
+                getFamiliarActivity().stopUpdatingDisplay();
+                /* Set button text to start again */
+                mTimerButton.setText(R.string.timer_start);
+                /* Cancel the notification */
+                NotificationManagerCompat.from(getActivity()).cancel(TIMER_NOTIFICATION_ID);
+            } else {
+                /* Figure out the end time */
+                int hours = mTimePicker.getHours();
+                int minutes = mTimePicker.getMinutes();
+                int seconds = mTimePicker.getSeconds();
 
-                    long timeInMillis = ((hours * 3600) + (minutes * 60) + seconds) * 1000;
-                    if (timeInMillis == 0) {
-                        return;
-                    }
-                    long endTime = System.currentTimeMillis() + timeInMillis;
-                    /* Commit the end time */
-                    getFamiliarActivity().mPreferenceAdapter.setRoundTimerEnd(endTime);
-
-                    /* Set the alarm, and any warning alarms if applicable */
-                    setOrCancelAlarms(getActivity(), endTime, true);
-                    /* Show the notification */
-                    showTimerRunningNotification(getActivity(), endTime);
-                    /* Start the ActionBar display Timer */
-                    getFamiliarActivity().startUpdatingDisplay();
-                    /* Set the button text to stop the timer */
-                    mTimerButton.setText(R.string.timer_cancel);
+                long timeInMillis = ((hours * 3600) + (minutes * 60) + seconds) * 1000;
+                if (timeInMillis == 0) {
+                    return;
                 }
+                long endTime = System.currentTimeMillis() + timeInMillis;
+                /* Commit the end time */
+                PreferenceAdapter.setRoundTimerEnd(getContext(), endTime);
+
+                /* Set the alarm, and any warning alarms if applicable */
+                setOrCancelAlarms(Objects.requireNonNull(getActivity()), endTime, true);
+                /* Show the notification */
+                showTimerRunningNotification(getActivity(), endTime);
+                /* Start the ActionBar display Timer */
+                getFamiliarActivity().startUpdatingDisplay();
+                /* Set the button text to stop the timer */
+                mTimerButton.setText(R.string.timer_cancel);
             }
         });
 
-        if (getFamiliarActivity().mPreferenceAdapter.getRoundTimerEnd() != -1) {
+        if (PreferenceAdapter.getRoundTimerEnd(getContext()) != -1) {
             mTimerButton.setText(R.string.timer_cancel);
         }
 
@@ -277,7 +303,7 @@ public class RoundTimerFragment extends FamiliarFragment {
         /* Handle item selection */
         switch (item.getItemId()) {
             case R.id.set_timer_ringtone:
-                Uri soundFile = Uri.parse(getFamiliarActivity().mPreferenceAdapter.getTimerSound());
+                Uri soundFile = Uri.parse(PreferenceAdapter.getTimerSound(getContext()));
 
                 Intent intent = new Intent(RingtoneManager.ACTION_RINGTONE_PICKER);
                 intent.putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION);

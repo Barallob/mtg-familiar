@@ -1,18 +1,39 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.fragments.dialogs;
 
 import android.app.Dialog;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.util.TypedValue;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 
 import com.afollestad.materialdialogs.MaterialDialog;
 import com.gelakinetic.mtgfam.R;
 import com.gelakinetic.mtgfam.helpers.ImageGetterHelper;
 
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Objects;
 
 /**
  * Class that creates dialogs for MoJhoStoFragment
@@ -28,14 +49,19 @@ public class MoJhoStoDialogFragment extends FamiliarDialogFragment {
     @NotNull
     @Override
     public Dialog onCreateDialog(Bundle savedInstanceState) {
-                /* This will be set to false if we are returning a null dialog. It prevents a crash */
+        if (!canCreateDialog()) {
+            setShowsDialog(false);
+            return DontShowDialog();
+        }
+
+        /* This will be set to false if we are returning a null dialog. It prevents a crash */
         setShowsDialog(true);
 
-        mDialogId = getArguments().getInt(ID_KEY);
+        mDialogId = Objects.requireNonNull(getArguments()).getInt(ID_KEY);
         switch (mDialogId) {
             case DIALOG_RULES: {
-                        /* Use a generic AlertDialog to display the rules text */
-                MaterialDialog.Builder builder = new MaterialDialog.Builder(this.getActivity());
+                /* Use a generic AlertDialog to display the rules text */
+                MaterialDialog.Builder builder = new MaterialDialog.Builder(Objects.requireNonNull(this.getActivity()));
                 builder.neutralText(R.string.mojhosto_dialog_play)
                         .content(ImageGetterHelper.formatHtmlString(getString(R.string.mojhosto_rules_text)))
                         .title(R.string.mojhosto_rules_title);
@@ -44,11 +70,11 @@ public class MoJhoStoDialogFragment extends FamiliarDialogFragment {
             case DIALOG_MOMIR:
             case DIALOG_STONEHEWER:
             case DIALOG_JHOIRA: {
-                        /* Use a raw dialog with a custom view (ImageView inside LinearLayout) to display the Vanguard*/
-                Dialog dialog = new Dialog(this.getActivity());
+                /* Use a raw dialog with a custom view (ImageView inside LinearLayout) to display the Vanguard*/
+                Dialog dialog = new Dialog(Objects.requireNonNull(this.getActivity()));
                 dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
                 dialog.setContentView(R.layout.card_view_image_dialog);
-                ImageView image = (ImageView) dialog.findViewById(R.id.cardimage);
+                ImageView image = dialog.findViewById(R.id.cardimage);
 
                         /* These drawables are re-sized on-the-fly, so only a single hi-res version exists in a resource
                            folder without density */
@@ -64,35 +90,39 @@ public class MoJhoStoDialogFragment extends FamiliarDialogFragment {
                         break;
                 }
 
-                        /* Make a DP border */
+                /* Make a DP border */
                 int border = (int) TypedValue.applyDimension(
                         TypedValue.COMPLEX_UNIT_DIP, 32, getResources().getDisplayMetrics());
 
-                        /* Get the screen size in px */
+                /* Get the screen size in px */
                 Rect rectangle = new Rect();
                 Window window = getActivity().getWindow();
                 window.getDecorView().getWindowVisibleDisplayFrame(rectangle);
                 int windowHeight = rectangle.height();
                 int windowWidth = rectangle.width();
 
-                        /* Get the drawable size in px */
+                /* Get the drawable size in px */
                 assert image.getDrawable() != null;
                 int imageHeight = image.getDrawable().getIntrinsicHeight();
                 int imageWidth = image.getDrawable().getIntrinsicWidth();
 
-                        /* Figure out how much to scale the drawable */
+                /* Figure out how much to scale the drawable */
                 float scaleFactor;
                 if ((imageHeight / (float) imageWidth) > (windowHeight / (float) windowWidth)) {
-                            /* Limiting factor is height */
+                    /* Limiting factor is height */
                     scaleFactor = (windowHeight - border) / (float) imageHeight;
                 } else {
-                            /* Limiting factor is width */
+                    /* Limiting factor is width */
                     scaleFactor = (windowWidth - border) / (float) imageWidth;
                 }
 
-                        /* Scale the drawable */
-                image.setLayoutParams(new LinearLayout.LayoutParams((int) (imageWidth * scaleFactor),
-                        (int) (imageHeight * scaleFactor)));
+                /* Scale the drawable */
+                ViewGroup.LayoutParams params = image.getLayoutParams();
+                if (null != params) {
+                    params.width = (int) (imageWidth * scaleFactor);
+                    params.height = (int) (imageHeight * scaleFactor);
+                    image.setLayoutParams(params);
+                }
 
                 return dialog;
             }

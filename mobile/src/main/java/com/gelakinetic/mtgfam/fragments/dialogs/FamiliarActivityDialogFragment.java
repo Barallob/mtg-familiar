@@ -1,5 +1,25 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.fragments.dialogs;
 
+import android.annotation.SuppressLint;
 import android.app.Dialog;
 import android.content.ActivityNotFoundException;
 import android.content.DialogInterface;
@@ -9,20 +29,20 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.speech.tts.TextToSpeech;
-import android.support.annotation.NonNull;
 import android.text.method.LinkMovementMethod;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.ImageView;
 import android.widget.TextView;
 
-import com.afollestad.materialdialogs.DialogAction;
 import com.afollestad.materialdialogs.MaterialDialog;
 import com.gelakinetic.mtgfam.FamiliarActivity;
 import com.gelakinetic.mtgfam.R;
 import com.gelakinetic.mtgfam.helpers.ImageGetterHelper;
+import com.gelakinetic.mtgfam.helpers.PreferenceAdapter;
 
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Objects;
 
 /**
  * Class that creates dialogs for FamiliarActivity
@@ -32,7 +52,7 @@ public class FamiliarActivityDialogFragment extends FamiliarDialogFragment {
     /* Constants used for displaying dialogs */
     public static final int DIALOG_ABOUT = 100;
     public static final int DIALOG_CHANGE_LOG = 101;
-    public static final int DIALOG_DONATE = 102;
+    //    public static final int DIALOG_DONATE = 102;
     public static final int DIALOG_TTS = 103;
 
     /**
@@ -46,15 +66,18 @@ public class FamiliarActivityDialogFragment extends FamiliarDialogFragment {
     @NotNull
     @Override
     public Dialog onCreateDialog(Bundle savedInstanceState) {
-        super.onCreateDialog(savedInstanceState);
+        if (!canCreateDialog()) {
+            setShowsDialog(false);
+            return DontShowDialog();
+        }
 
-                /* This will be set to false if we are returning a null dialog. It prevents a crash */
+        /* This will be set to false if we are returning a null dialog. It prevents a crash */
         setShowsDialog(true);
-        MaterialDialog.Builder builder = new MaterialDialog.Builder(this.getActivity());
+        MaterialDialog.Builder builder = new MaterialDialog.Builder(Objects.requireNonNull(this.getActivity()));
 
         assert getActivity().getPackageManager() != null;
 
-        mDialogId = getArguments().getInt(ID_KEY);
+        mDialogId = Objects.requireNonNull(getArguments()).getInt(ID_KEY);
         switch (mDialogId) {
             case DIALOG_ABOUT: {
 
@@ -71,14 +94,12 @@ public class FamiliarActivityDialogFragment extends FamiliarDialogFragment {
 
                 /* Set the custom view, with some images below the text */
                 LayoutInflater inflater = this.getActivity().getLayoutInflater();
-                View dialogLayout = inflater.inflate(R.layout.activity_dialog_about, null, false);
+                @SuppressLint("InflateParams") View dialogLayout = inflater.inflate(R.layout.activity_dialog_about, null, false);
                 assert dialogLayout != null;
-                TextView text = (TextView) dialogLayout.findViewById(R.id.aboutfield);
+                TextView text = dialogLayout.findViewById(R.id.aboutfield);
                 text.setText(ImageGetterHelper.formatHtmlString(getString(R.string.main_about_text)));
                 text.setMovementMethod(LinkMovementMethod.getInstance());
                 builder.customView(dialogLayout, false);
-
-                dialogLayout.findViewById(R.id.imageview3).setVisibility(View.GONE);
 
                 return builder.build();
             }
@@ -94,90 +115,80 @@ public class FamiliarActivityDialogFragment extends FamiliarDialogFragment {
 
                 /* Set the custom view, with some images below the text */
                 LayoutInflater inflater = this.getActivity().getLayoutInflater();
-                View dialogLayout = inflater.inflate(R.layout.activity_dialog_about, null, false);
+                @SuppressLint("InflateParams") View dialogLayout = inflater.inflate(R.layout.activity_dialog_about, null, false);
                 assert dialogLayout != null;
-                TextView text = (TextView) dialogLayout.findViewById(R.id.aboutfield);
+                TextView text = dialogLayout.findViewById(R.id.aboutfield);
                 text.setText(ImageGetterHelper.formatHtmlString(getString(R.string.main_whats_new_text)));
                 text.setMovementMethod(LinkMovementMethod.getInstance());
 
                 dialogLayout.findViewById(R.id.imageview1).setVisibility(View.GONE);
                 dialogLayout.findViewById(R.id.imageview2).setVisibility(View.GONE);
-                dialogLayout.findViewById(R.id.imageview3).setVisibility(View.GONE);
                 builder.customView(dialogLayout, false);
 
                 return builder.build();
             }
-            case DIALOG_DONATE: {
-                /* Set the title */
-                builder.title(R.string.main_donate_dialog_title);
-                /* Set the buttons button */
-                builder.negativeText(R.string.dialog_thanks_anyway);
-
-                builder.positiveText(R.string.main_donate_title);
-                builder.onPositive(new MaterialDialog.SingleButtonCallback() {
-                    @Override
-                    public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-                        Intent myIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(FamiliarActivity.PAYPAL_URL));
-                        startActivity(myIntent);
-                    }
-                });
-
-                /* Set the custom view */
-                LayoutInflater inflater = this.getActivity().getLayoutInflater();
-                View dialogLayout = inflater.inflate(R.layout.activity_dialog_about, null, false);
-
-                /* Set the text */
-                assert dialogLayout != null;
-                TextView text = (TextView) dialogLayout.findViewById(R.id.aboutfield);
-                text.setText(ImageGetterHelper.formatHtmlString(getString(R.string.main_donate_text)));
-                text.setMovementMethod(LinkMovementMethod.getInstance());
-
-                /* Set the image view */
-                ImageView payPal = (ImageView) dialogLayout.findViewById(R.id.imageview1);
-                payPal.setImageResource(R.drawable.paypal_icon);
-                payPal.setOnClickListener(new View.OnClickListener() {
-
-                    public void onClick(View v) {
-                        Intent myIntent = new Intent(Intent.ACTION_VIEW, Uri
-                                .parse(FamiliarActivity.PAYPAL_URL));
-
-                        startActivity(myIntent);
-                    }
-                });
-                dialogLayout.findViewById(R.id.imageview2).setVisibility(View.GONE);
-                dialogLayout.findViewById(R.id.imageview3).setVisibility(View.GONE);
-
-                builder.customView(dialogLayout, false);
-                return builder.build();
-            }
+//            case DIALOG_DONATE: {
+//                /* Set the title */
+//                builder.title(R.string.main_donate_dialog_title);
+//                /* Set the buttons button */
+//                builder.negativeText(R.string.dialog_thanks_anyway);
+//
+//                builder.positiveText(R.string.main_donate_title);
+//                builder.onPositive((dialog, which) -> {
+//                    Intent myIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(FamiliarActivity.PAYPAL_URL));
+//                    startActivity(myIntent);
+//                });
+//
+//                /* Set the custom view */
+//                LayoutInflater inflater = this.getActivity().getLayoutInflater();
+//                @SuppressLint("InflateParams") View dialogLayout = inflater.inflate(R.layout.activity_dialog_about, null, false);
+//
+//                /* Set the text */
+//                assert dialogLayout != null;
+//                TextView text = dialogLayout.findViewById(R.id.aboutfield);
+//                text.setText(ImageGetterHelper.formatHtmlString(getString(R.string.main_donate_text)));
+//                text.setMovementMethod(LinkMovementMethod.getInstance());
+//
+//                /* Set the image view */
+//                ImageView payPal = dialogLayout.findViewById(R.id.imageview1);
+//                payPal.setImageResource(R.drawable.paypal_icon);
+//                payPal.setOnClickListener(v -> {
+//                    Intent myIntent = new Intent(Intent.ACTION_VIEW, Uri
+//                            .parse(FamiliarActivity.PAYPAL_URL));
+//
+//                    startActivity(myIntent);
+//                });
+//                dialogLayout.findViewById(R.id.imageview2).setVisibility(View.GONE);
+//
+//                builder.customView(dialogLayout, false);
+//                return builder.build();
+//            }
             case DIALOG_TTS: {
                 /* Then display a dialog informing them of TTS */
 
                 builder.title(R.string.main_tts_warning_title)
                         .content(R.string.main_tts_warning_text)
                         .positiveText(R.string.main_install_tts)
-                        .onPositive(new MaterialDialog.SingleButtonCallback() {
-                            @Override
-                            public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-                                /* TTS couldn't init, try installing TTS data */
-                                try {
-                                    Intent installIntent = new Intent();
-                                    installIntent.setAction(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA);
-                                    startActivity(installIntent);
-                                } catch (ActivityNotFoundException e) {
-                                    /* TTS not even installed */
-                                    Intent intent = new Intent(Intent.ACTION_VIEW);
-                                    intent.setData(Uri.parse("market://details?id=com.google.android.tts"));
-                                    startActivity(intent);
-                                }
-                                dialog.dismiss();
+                        .onPositive((dialog, which) -> {
+                            /* TTS couldn't init, try installing TTS data */
+                            try {
+                                Intent installIntent = new Intent();
+                                installIntent.setAction(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA);
+                                startActivity(installIntent);
+                            } catch (ActivityNotFoundException e) {
+                                /* TTS not even installed */
+                                Intent intent = new Intent(Intent.ACTION_VIEW);
+                                intent.setData(Uri.parse("market://details?id=com.google.android.tts"));
+                                startActivity(intent);
                             }
+                            dialog.dismiss();
                         })
                         .negativeText(R.string.dialog_cancel);
                 return builder.build();
             }
             default: {
-                return DontShowDialog();
+                savedInstanceState.putInt("id", mDialogId);
+                return super.onCreateDialog(savedInstanceState);
             }
         }
     }
@@ -194,16 +205,17 @@ public class FamiliarActivityDialogFragment extends FamiliarDialogFragment {
         try {
             final FamiliarActivity activity = getFamiliarActivity();
             if (mDialogId == DIALOG_CHANGE_LOG) {
-                if (activity.mPreferenceAdapter.getBounceDrawer()) {
-                    new Handler().postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
+                if (PreferenceAdapter.getBounceDrawer(getContext())) {
+                    new Handler().postDelayed(() -> {
+                        if (null != activity &&
+                                null != activity.mDrawerLayout &&
+                                null != activity.mDrawerList) {
                             activity.mDrawerLayout.openDrawer(activity.mDrawerList);
-                            new Handler().postDelayed(new Runnable() {
-                                @Override
-                                public void run() {
+                            new Handler().postDelayed(() -> {
+                                PreferenceAdapter.setBounceDrawer(activity);
+                                if (null != activity.mDrawerLayout &&
+                                        null != activity.mDrawerList) {
                                     activity.mDrawerLayout.closeDrawer(activity.mDrawerList);
-                                    activity.mPreferenceAdapter.setBounceDrawer();
                                 }
                             }, 2000);
                         }

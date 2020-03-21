@@ -1,19 +1,40 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.fragments;
 
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.view.animation.AnimationUtils;
 import android.widget.TextSwitcher;
 import android.widget.TextView;
 import android.widget.ViewSwitcher.ViewFactory;
 
+import androidx.annotation.NonNull;
+
 import com.gelakinetic.mtgfam.R;
 
 import java.util.ArrayList;
+import java.util.Objects;
 
 /**
  * This class helps judges tally deck counts quickly
@@ -48,13 +69,13 @@ public class DeckCounterFragment extends FamiliarFragment implements ViewFactory
      * @return The view to be shown
      */
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 
         /* Inflate the view, pull out UI elements */
         View myFragmentView = inflater.inflate(R.layout.deck_counter_frag, container, false);
         assert myFragmentView != null;
-        mDeckCountText = (TextSwitcher) myFragmentView.findViewById(R.id.deck_counter_count);
-        mDeckCountHistory = (TextView) myFragmentView.findViewById(R.id.deck_counter_history);
+        mDeckCountText = myFragmentView.findViewById(R.id.deck_counter_count);
+        mDeckCountHistory = myFragmentView.findViewById(R.id.deck_counter_history);
 
         /* Set the animations for the text switcher */
         mDeckCountText.setFactory(this);
@@ -64,7 +85,7 @@ public class DeckCounterFragment extends FamiliarFragment implements ViewFactory
         /* Restore any state, if available */
         if (savedInstanceState != null) {
             mDeckCount = savedInstanceState.getInt(DECK_COUNT_KEY);
-            mDeckCountSequence = StringToArray(savedInstanceState.getString(SEQUENCE_KEY));
+            mDeckCountSequence = StringToArray(Objects.requireNonNull(savedInstanceState.getString(SEQUENCE_KEY)));
         } else {
             mDeckCount = 0;
             mDeckCountSequence = new ArrayList<>();
@@ -78,44 +99,14 @@ public class DeckCounterFragment extends FamiliarFragment implements ViewFactory
         mDeckCountText.setText("" + mDeckCount);
 
         /* Attach actions to all the buttons */
-        myFragmentView.findViewById(R.id.deck_counter_1).setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                updateCardCount(1);
-            }
-        });
-        myFragmentView.findViewById(R.id.deck_counter_2).setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                updateCardCount(2);
-            }
-        });
-        myFragmentView.findViewById(R.id.deck_counter_3).setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                updateCardCount(3);
-            }
-        });
-        myFragmentView.findViewById(R.id.deck_counter_4).setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                updateCardCount(4);
-            }
-        });
+        myFragmentView.findViewById(R.id.deck_counter_1).setOnClickListener(v -> updateCardCount(1));
+        myFragmentView.findViewById(R.id.deck_counter_2).setOnClickListener(v -> updateCardCount(2));
+        myFragmentView.findViewById(R.id.deck_counter_3).setOnClickListener(v -> updateCardCount(3));
+        myFragmentView.findViewById(R.id.deck_counter_4).setOnClickListener(v -> updateCardCount(4));
 
-        myFragmentView.findViewById(R.id.deck_counter_undo).setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                updateCardCount(COUNT_FLAG_UNDO);
-            }
-        });
+        myFragmentView.findViewById(R.id.deck_counter_undo).setOnClickListener(v -> updateCardCount(COUNT_FLAG_UNDO));
 
-        myFragmentView.findViewById(R.id.deck_counter_reset).setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                updateCardCount(COUNT_FLAG_RESET);
-            }
-        });
+        myFragmentView.findViewById(R.id.deck_counter_reset).setOnClickListener(v -> updateCardCount(COUNT_FLAG_RESET));
         return myFragmentView;
     }
 
@@ -139,7 +130,7 @@ public class DeckCounterFragment extends FamiliarFragment implements ViewFactory
      * @param outState Bundle in which to place your saved state.
      */
     @Override
-    public void onSaveInstanceState(Bundle outState) {
+    public void onSaveInstanceState(@NonNull Bundle outState) {
 
         outState.putInt(DECK_COUNT_KEY, mDeckCount);
         outState.putString(SEQUENCE_KEY, ArrayToString(mDeckCountSequence));
@@ -154,13 +145,13 @@ public class DeckCounterFragment extends FamiliarFragment implements ViewFactory
      * @return A String representation of the list
      */
     private String ArrayToString(ArrayList<Integer> list) {
-        String string = "";
+        StringBuilder string = new StringBuilder();
         if (list != null) {
             for (Integer i : list) {
-                string += i + ",";
+                string.append(i).append(",");
             }
         }
-        return string;
+        return string.toString();
     }
 
     /**
@@ -170,7 +161,7 @@ public class DeckCounterFragment extends FamiliarFragment implements ViewFactory
      * @return An ArrayList built from the String
      */
     private ArrayList<Integer> StringToArray(String string) {
-        String parts[] = string.split(",");
+        String[] parts = string.split(",");
         ArrayList<Integer> list = new ArrayList<>(parts.length - 1);
         for (String part : parts) {
             try {
@@ -218,7 +209,7 @@ public class DeckCounterFragment extends FamiliarFragment implements ViewFactory
                 history.append(aSequence).append("  ");
             }
             mDeckCountHistory.setText(history.toString());
-            mDeckCountText.setText("" + mDeckCount);
+            mDeckCountText.setText(String.valueOf(mDeckCount));
         }
     }
 }

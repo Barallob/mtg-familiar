@@ -1,4 +1,22 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?><!--
+  ~ Copyright 2017 Adam Feinstein
+  ~
+  ~ This file is part of MTG Familiar.
+  ~
+  ~ MTG Familiar is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ MTG Familiar is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU General Public License
+  ~ along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="key_lastVersion" translatable="false">lastVersion</string>
     <string name="key_lastLegalityUpdate" translatable="false">lastLegalityUpdate</string>
@@ -9,6 +27,7 @@
     <string name="key_greenMana" translatable="false">greenMana</string>
     <string name="key_colorlessMana" translatable="false">colorlessMana</string>
     <string name="key_spellCount" translatable="false">spellCount</string>
+    <string name="key_energy" translatable="false">energy</string>
     <string name="key_lastRulesUpdate" translatable="false">lastRulesUpdate</string>
     <string name="key_lastMTRUpdate" translatable="false">lastMTRUpdate</string>
     <string name="key_lastIPGUpdate" translatable="false">lastIPGUpdate</string>
@@ -16,6 +35,8 @@
     <string name="key_ttsShowDialog" translatable="false">ttsShowDialog</string>
     <string name="key_autoupdate" translatable="false">autoupdate</string>
     <string name="key_consolidateSearch" translatable="false">consolidateSearch</string>
+    <string name="key_persistSearch" translatable="false">persistSearch</string>
+    <string name="key_hideOnlineCards" translatable="false">hideOnlineOnly</string>
     <string name="key_picFirst" translatable="false">picFirst</string>
     <string name="key_wakelock" translatable="false">wakelock</string>
     <string name="key_dimlock" translatable="false">dimlock</string>
@@ -41,6 +62,7 @@
     <string name="key_player_data" translatable="false">player_data</string>
     <string name="key_timerSound" translatable="false">timerSound</string>
     <string name="key_tradePrice" translatable="false">tradePrice</string>
+    <string name="key_wishlistPrice" translatable="false">wishlistPrice</string>
     <string name="key_date" translatable="false">date</string>
     <string name="key_lastUpdate" translatable="false">lastUpdate</string>
     <string name="key_lastTCGNameUpdate" translatable="false">lastTCGNameUpdate</string>
@@ -63,6 +85,17 @@
     <string name="key_wishlist_sort_order_2" translatable="false">wishlist_sort_order_2</string>
     <string name="key_legality_timestamp" translatable="false">legality_timestamp</string>
     <string name="key_last_update_timestamp" translatable="false">last_update_timestamp</string>
-
+    <string name="key_tap_symbol" translatable="false">tapSymbol</string>
+    <string name="key_white_symbol" translatable="false">whiteSymbol</string>
+    <string name="key_undoTimeout" translatable="false">undo_timeout</string>
+    <string name="key_showTotalPriceDecklistPref" translatable="false">showTotalPriceDecklistPref</string>
+    <string name="key_deckPrice" translatable="false">deckPrice</string>
+    <string name="key_TcgpToken" translatable="false">tcgp_token</string>
+    <string name="key_TcgpTokenExpirationDate" translatable="false">tcgp_token_expiration_date</string>
+    <string name="key_LastDecklistLoaded" translatable="false">last_decklist_loaded</string>
+    <string name="key_LastTradeLoaded" translatable="false">last_trade_loaded</string>
+    <string name="key_SearchCriteria" translatable="false">search_criteria</string>
+    <string name="key_SearchCriteriaPerm" translatable="false">search_criteria_permanent</string>
+    <string name="key_tcgpGroups" translatable="false">tcgp_groups</string>
 
 </resources>
